@@ -191,34 +191,206 @@ const Bar = ({step}) => (
   </div>
 );
 
-// ── CÁLCULOS REBA ─────────────────────────────────────────────────────────
-const REBA_TA = [[1,2,3,4],[1,2,3,4],[3,3,5,6],[4,4,6,7],[4,4,6,7],[6,6,7,8]];
-const REBA_TB = [[1,2,2,3,4,5],[2,2,2,3,4,5],[3,3,3,4,5,6],[3,3,3,4,5,6],
-                 [4,4,4,5,6,7],[4,4,5,6,7,7],[5,5,6,7,8,8],[5,5,6,7,8,8]];
+// ══════════════════════════════════════════════════════════════════════════
+// CORRECCIÓN CRÍTICA #1: TABLA A REBA REAL
+// Fuente: Hignett & McAtamney (2000) — Tabla A completa
+// Dimensiones: Tronco(1-5) × Cuello(1-3) × Piernas(1-4)
+// ══════════════════════════════════════════════════════════════════════════
+const REBA_TABLE_A = [
+  // Tronco 1
+  [[1,2,3,4],[1,2,3,4],[3,3,5,6]],
+  // Tronco 2
+  [[2,3,4,5],[3,4,5,6],[4,5,6,7]],
+  // Tronco 3
+  [[2,4,5,6],[4,5,6,7],[5,6,7,8]],
+  // Tronco 4
+  [[3,5,6,7],[5,6,7,8],[6,7,8,9]],
+  // Tronco 5
+  [[4,6,7,8],[6,7,8,9],[7,8,9,9]],
+];
+
+// Tabla B REBA: Brazo superior(1-6) × Brazo inferior(1-2) × Muñeca(1-3)
+const REBA_TABLE_B = [
+  // UA 1
+  [[1,2,2],[1,2,3]],
+  // UA 2
+  [[1,2,3],[2,3,4]],
+  // UA 3
+  [[3,4,5],[4,5,5]],
+  // UA 4
+  [[4,5,5],[5,6,7]],
+  // UA 5
+  [[6,7,8],[7,8,8]],
+  // UA 6
+  [[7,8,8],[8,9,9]],
+];
+
+// Tabla C REBA: ScoreA(1-12) × ScoreB(1-12)
 const REBA_TC = [
-  [1,1,1,2,3,3,4,5,6,7,7,7],[1,2,2,3,4,4,5,6,6,7,7,8],[2,3,3,3,4,5,6,7,7,8,8,8],
-  [3,4,4,4,5,6,7,8,8,9,9,9],[4,4,4,5,6,7,8,8,9,9,9,9],[6,6,6,7,8,8,9,9,10,10,10,10],
-  [7,7,7,8,9,9,9,10,10,11,11,11],[8,8,8,9,10,10,10,10,10,11,11,11],
-  [9,9,9,10,10,10,11,11,11,12,12,12],[10,10,10,11,11,11,11,12,12,12,12,12],
-  [11,11,11,11,12,12,12,12,12,12,12,12],[12,12,12,12,12,12,12,12,12,12,12,12]
+  [1,1,1,2,3,3,4,5,6,7,7,7],
+  [1,2,2,3,4,4,5,6,6,7,7,8],
+  [2,3,3,3,4,5,6,7,7,8,8,8],
+  [3,4,4,4,5,6,7,8,8,9,9,9],
+  [4,4,4,5,6,7,8,8,9,9,9,9],
+  [6,6,6,7,8,8,9,9,10,10,10,10],
+  [7,7,7,8,9,9,9,10,10,11,11,11],
+  [8,8,8,9,10,10,10,10,10,11,11,11],
+  [9,9,9,10,10,10,11,11,11,12,12,12],
+  [10,10,10,11,11,11,11,12,12,12,12,12],
+  [11,11,11,11,12,12,12,12,12,12,12,12],
+  [12,12,12,12,12,12,12,12,12,12,12,12]
 ];
 
 function calcReba(s) {
-  const neck  = s.neck  + (s.neckT?1:0)  + (s.neckS?1:0);
-  const trunk = s.trunk + (s.trunkT?1:0) + (s.trunkS?1:0);
-  const rA = Math.min(Math.max((trunk-1)*2 + Math.min(neck-1,2), 0), 5);
-  const sA = Math.min((REBA_TA[rA]?.[Math.min(s.legs-1,3)] ?? 6) + s.load + (s.shock?1:0), 12);
-  const ua  = Math.max(s.ua + (s.shr?1:0) + (s.abd?1:0) - (s.sup?1:0), 1);
-  const rB  = Math.min((ua-1)*2 + Math.min(s.la-1,1), 7);
-  const cB  = Math.min((s.wrist-1)*2 + (s.wristT?1:0), 5);
-  const sB  = Math.min((REBA_TB[rB]?.[cB] ?? 6) + s.coup, 12);
-  const sC  = REBA_TC[Math.min(sA-1,11)]?.[Math.min(sB-1,11)] ?? 12;
-  const fin = Math.min(sC + s.act, 12);
-  const level = fin<=1?0 : fin<=3?1 : fin<=7?2 : fin<=10?3 : 4;
-  return {sA, sB, sC, fin, level};
+  // ── Grupo A: Tronco + Cuello + Piernas ──
+  // Tronco: base 1-5 (UI da 1-4, pero con modificadores puede llegar a 5+)
+  const trunkBase = Math.min(Math.max(s.trunk, 1), 5);
+  const trunkMod  = (s.trunkT ? 1 : 0) + (s.trunkS ? 1 : 0);
+  const trunkFin  = Math.min(trunkBase + trunkMod, 5);
+
+  // Cuello: base 1-2, con modificadores hasta 3
+  const neckBase = Math.min(Math.max(s.neck, 1), 2);
+  const neckMod  = (s.neckT ? 1 : 0) + (s.neckS ? 1 : 0);
+  const neckFin  = Math.min(neckBase + neckMod, 3);
+
+  // Piernas: 1-4 directo del selector
+  const legsFin = Math.min(Math.max(s.legs, 1), 4);
+
+  // Lookup Tabla A
+  const scoreTA = REBA_TABLE_A[trunkFin - 1]?.[neckFin - 1]?.[legsFin - 1] ?? 9;
+
+  // Score A = Tabla A + Carga + Shock
+  const loadScore = Math.min(Math.max(s.load, 0), 2);
+  const shockAdd  = s.shock ? 1 : 0;
+  const sA = Math.min(scoreTA + loadScore + shockAdd, 12);
+
+  // ── Grupo B: Brazo superior + Brazo inferior + Muñeca ──
+  const uaBase = Math.min(Math.max(s.ua, 1), 4);
+  const uaMod  = (s.shr ? 1 : 0) + (s.abd ? 1 : 0) - (s.sup ? 1 : 0);
+  const uaFin  = Math.min(Math.max(uaBase + uaMod, 1), 6);
+
+  // Brazo inferior: 1-2
+  const laFin = Math.min(Math.max(s.la, 1), 2);
+
+  // Muñeca: base 1-2, con torsión hasta 3
+  const wristBase = Math.min(Math.max(s.wrist, 1), 2);
+  const wristFin  = Math.min(wristBase + (s.wristT ? 1 : 0), 3);
+
+  // Lookup Tabla B
+  const scoreTB = REBA_TABLE_B[uaFin - 1]?.[laFin - 1]?.[wristFin - 1] ?? 9;
+
+  // Score B = Tabla B + Acoplamiento
+  const coupScore = Math.min(Math.max(s.coup, 0), 3);
+  const sB = Math.min(scoreTB + coupScore, 12);
+
+  // ── Tabla C ──
+  const sC = REBA_TC[Math.min(sA - 1, 11)]?.[Math.min(sB - 1, 11)] ?? 12;
+
+  // ── Score final = C + Actividad ──
+  const actScore = Math.min(Math.max(s.act, 0), 3);
+  const fin = Math.min(sC + actScore, 15);
+
+  // ── Nivel de riesgo ──
+  const level = fin <= 1 ? 0 : fin <= 3 ? 1 : fin <= 7 ? 2 : fin <= 10 ? 3 : 4;
+
+  return {sA, sB, sC, fin, level, trunkFin, neckFin, legsFin, uaFin, wristFin};
 }
 
-// ── CÁLCULO OWAS ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// CORRECCIÓN CRÍTICA #2: RULA — Tabla A real completa
+// Fuente: McAtamney & Corlett (1993)
+// Tabla A: Brazo sup(1-6) × Brazo inf(1-3) × Muñeca(1-4) × Torsión muñeca(1-2)
+// ══════════════════════════════════════════════════════════════════════════
+const RULA_TABLE_A = [
+  // UA=1
+  [[[1,2],[2,2],[2,3],[3,3]],[[2,2],[2,2],[3,3],[3,3]],[[2,3],[3,3],[3,3],[4,4]]],
+  // UA=2
+  [[[2,3],[3,3],[3,4],[4,4]],[[3,3],[3,3],[3,4],[4,4]],[[3,4],[4,4],[4,4],[5,5]]],
+  // UA=3
+  [[[3,3],[4,4],[4,4],[5,5]],[[3,4],[4,4],[4,5],[5,5]],[[4,4],[4,4],[4,5],[5,6]]],
+  // UA=4
+  [[[4,4],[4,4],[4,5],[5,5]],[[4,4],[4,4],[4,5],[5,5]],[[4,5],[5,5],[5,6],[6,7]]],
+  // UA=5
+  [[[5,5],[5,5],[5,6],[6,7]],[[5,6],[6,6],[6,7],[7,7]],[[6,6],[6,7],[7,7],[7,8]]],
+  // UA=6
+  [[[7,7],[7,7],[7,8],[8,9]],[[8,8],[8,8],[8,9],[9,9]],[[9,9],[9,9],[9,9],[9,9]]],
+];
+
+// Tabla B RULA: Cuello(1-6) × Tronco(1-6) × Piernas(1-2)
+const RULA_TABLE_B = [
+  // Cuello=1
+  [[1,3],[2,3],[3,4],[5,5],[6,6],[7,7]],
+  // Cuello=2
+  [[2,3],[2,3],[4,5],[5,5],[6,7],[7,7]],
+  // Cuello=3
+  [[3,3],[3,4],[4,5],[5,6],[6,7],[7,7]],
+  // Cuello=4
+  [[5,5],[5,6],[6,7],[7,7],[7,7],[8,8]],
+  // Cuello=5
+  [[7,7],[7,7],[7,8],[8,8],[8,8],[8,8]],
+  // Cuello=6
+  [[8,8],[8,8],[8,8],[9,9],[9,9],[9,9]],
+];
+
+// Tabla C RULA: ScoreA(1-8+) × ScoreB(1-7+)
+const RULA_TABLE_C = [
+  [1,2,3,3,4,5,5],
+  [2,2,3,4,4,5,5],
+  [3,3,3,4,4,5,6],
+  [3,3,3,4,5,6,6],
+  [4,4,4,5,6,7,7],
+  [4,4,5,6,6,7,7],
+  [5,5,6,6,7,7,7],
+  [5,5,6,7,7,7,7]
+];
+
+function calcRula(s) {
+  // ── Grupo A: Brazo sup + Brazo inf + Muñeca ──
+  const uaBase = Math.min(Math.max(s.ua, 1), 4);
+  const uaMod  = (s.shr ? 1 : 0) - (s.sup ? 1 : 0);
+  const uaFin  = Math.min(Math.max(uaBase + uaMod, 1), 6);
+
+  const laBase = Math.min(Math.max(s.la, 1), 2);
+  const laFin  = Math.min(laBase + (s.mid ? 1 : 0), 3);
+
+  const wristFin = Math.min(Math.max(s.wrist, 1), 4);
+  const wristTw  = s.wristT ? 1 : 0; // 0=twist1, 1=twist2
+
+  // Lookup Tabla A
+  const scoreTA = RULA_TABLE_A[uaFin - 1]?.[laFin - 1]?.[wristFin - 1]?.[wristTw] ?? 9;
+
+  // Score A = Tabla A + Músculo A + Fuerza A
+  const sA = scoreTA + Math.min(Math.max(s.mA, 0), 1) + Math.min(Math.max(s.fA, 0), 3);
+
+  // ── Grupo B: Cuello + Tronco + Piernas ──
+  const neckBase = Math.min(Math.max(s.neck, 1), 4);
+  const neckMod  = (s.neckT ? 1 : 0) + (s.neckS ? 1 : 0);
+  const neckFin  = Math.min(neckBase + neckMod, 6);
+
+  const trunkBase = Math.min(Math.max(s.trunk, 1), 4);
+  const trunkMod  = (s.trunkT ? 1 : 0) + (s.trunkS ? 1 : 0);
+  const trunkFin  = Math.min(trunkBase + trunkMod, 6);
+
+  const legsFin = Math.min(Math.max(s.legs, 1), 2);
+
+  // Lookup Tabla B: [cuello-1][tronco-1][piernas-1]
+  const scoreTB = RULA_TABLE_B[neckFin - 1]?.[trunkFin - 1]?.[legsFin - 1] ?? 9;
+
+  // Score B = Tabla B + Músculo B + Fuerza B
+  const sB = scoreTB + Math.min(Math.max(s.mB, 0), 1) + Math.min(Math.max(s.fB, 0), 3);
+
+  // ── Tabla C ──
+  const fin = RULA_TABLE_C[Math.min(Math.max(sA - 1, 0), 7)]?.[Math.min(Math.max(sB - 1, 0), 6)] ?? 7;
+
+  // ── Nivel de riesgo ──
+  const level = fin <= 2 ? 0 : fin <= 3 ? 1 : fin <= 4 ? 2 : fin <= 6 ? 3 : 4;
+
+  return {sA, sB, fin, level};
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CÁLCULO OWAS (sin cambios — tabla ya era correcta)
+// ══════════════════════════════════════════════════════════════════════════
 const OWAS_TABLE = {
   "1111":1,"1112":1,"1113":1,"1114":2,"1121":1,"1122":1,"1123":2,"1124":2,
   "1131":1,"1132":2,"1133":2,"1134":3,"1141":2,"1142":2,"1143":3,"1144":3,
@@ -249,71 +421,59 @@ const OWAS_ACCION = [
   "Sin acción","Acción en futuro próximo","Acción cuanto antes","Acción INMEDIATA"
 ];
 
-// ── CÁLCULO NIOSH ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// CORRECCIÓN CRÍTICA #3: NIOSH — manejo correcto de F=0
+// ══════════════════════════════════════════════════════════════════════════
 const NIOSH_FM = {
-  "<1h": [0.85,0.81,0.75,0.65,0.55,0.45,0,0,0,0,0,0,0],
-  "1-2h":[0.95,0.92,0.88,0.84,0.79,0.72,0.6,0.5,0.42,0.35,0.3,0.26,0.23],
-  "2-8h":[1,0.97,0.94,0.91,0.88,0.84,0.8,0.75,0.7,0.6,0.52,0.45,0]
+  "<1h": [1.00,0.95,0.85,0.81,0.75,0.65,0.55,0.45,0,0,0,0,0,0,0,0],
+  "1-2h":[0.95,0.92,0.88,0.84,0.79,0.72,0.60,0.50,0.42,0.35,0.30,0.26,0.23,0.21,0,0],
+  "2-8h":[0.85,0.81,0.75,0.65,0.55,0.45,0.35,0.27,0.22,0.18,0.15,0.13,0.00,0.00,0.00,0.00]
 };
 
+// Mapa de frecuencia → índice en tabla FM (NIOSH revisada)
+function getNioshFMIndex(freq) {
+  if (freq <= 0)    return 0;   // F=0: operación única, FM más favorable
+  if (freq <= 0.2)  return 0;
+  if (freq <= 0.5)  return 1;
+  if (freq <= 1)    return 2;
+  if (freq <= 2)    return 3;
+  if (freq <= 3)    return 4;
+  if (freq <= 4)    return 5;
+  if (freq <= 5)    return 6;
+  if (freq <= 6)    return 7;
+  if (freq <= 7)    return 8;
+  if (freq <= 8)    return 9;
+  if (freq <= 9)    return 10;
+  if (freq <= 10)   return 11;
+  if (freq <= 11)   return 12;
+  if (freq <= 12)   return 13;
+  if (freq <= 13)   return 14;
+  return 15;
+}
+
 function calcNiosh(s) {
-  const HM = Math.min(25 / Math.max(s.H, 1), 1);
+  const H  = Math.max(s.H, 1);
+  const HM = Math.min(25 / H, 1);
   const VM = Math.max(1 - 0.003 * Math.abs(s.V - 75), 0);
-  const DM = s.D < 25 ? 0.87 : Math.min(0.82 + 4.5/s.D, 1);
+  const DM = s.D < 25 ? 0.87 : Math.min(0.82 + 4.5 / s.D, 1);
   const AM = Math.max(1 - 0.0032 * s.A, 0);
-  const fi = s.F<=0.2?0:s.F<=0.5?1:s.F<=1?2:s.F<=2?3:s.F<=3?4:
-             s.F<=4?5:s.F<=5?6:s.F<=6?7:s.F<=7?8:s.F<=8?9:s.F<=9?10:s.F<=10?11:12;
-  const FM = NIOSH_FM[s.dur]?.[fi] ?? 0.45;
-  const CM = s.coup==="good" ? 1 : s.coup==="fair" ? 0.95 : 0.90;
+  const fi = getNioshFMIndex(s.F);
+  const FM = NIOSH_FM[s.dur]?.[fi] ?? 0;
+  const CM = s.coup === "good" ? 1 : s.coup === "fair" ? 0.95 : 0.90;
+
   const RWL = 23 * HM * VM * DM * AM * FM * CM;
-  const LI  = s.L / Math.max(RWL, 0.01);
-  const level = LI<=1?0 : LI<=2?1 : LI<=3?2 : LI<=5?3 : 4;
-  return {HM, VM, DM, AM, FM, CM, RWL:RWL.toFixed(2), LI:LI.toFixed(2), level};
+  const LI  = RWL > 0.01 ? (s.L / RWL) : (s.L > 0 ? 999 : 0);
+  const level = LI <= 1 ? 0 : LI <= 2 ? 1 : LI <= 3 ? 2 : LI <= 5 ? 3 : 4;
+  return {HM, VM, DM, AM, FM, CM, RWL: RWL.toFixed(2), LI: LI.toFixed(2), level};
 }
 
-// ── CÁLCULO RULA ──────────────────────────────────────────────────────────
-function calcRula(s) {
-  const tA = [
-    [[[1,2],[2,2],[2,3],[3,3]],[[2,2],[2,2],[3,3],[3,3]],[[2,3],[3,3],[3,3],[4,4]]],
-    [[[2,3],[3,3],[3,4],[4,4]],[[3,3],[3,3],[3,4],[4,4]],[[3,4],[4,4],[4,4],[5,5]]],
-    [[[3,3],[4,4],[4,4],[5,5]],[[3,4],[4,4],[4,5],[5,5]],[[4,4],[4,4],[4,5],[5,6]]],
-    [[[4,4],[4,4],[4,5],[5,5]],[[4,4],[4,4],[4,5],[5,5]],[[4,5],[5,5],[5,6],[6,7]]],
-    [[[5,5],[5,5],[5,6],[6,7]],[[5,6],[6,6],[6,7],[7,7]],[[6,6],[6,7],[7,7],[7,8]]],
-    [[[7,8],[7,8],[7,8],[8,9]],[[8,9],[8,9],[8,9],[9,9]],[[9,9],[9,9],[9,9],[9,9]]]
-  ];
-  const ua  = Math.max(Math.min(s.ua + (s.shr?1:0) - (s.sup?1:0), 6), 1);
-  const la  = Math.min(s.la + (s.mid?1:0), 2);
-  const w   = Math.min(s.wrist, 3);
-  const wt  = s.wristT ? 1 : 0;
-  const sA  = (tA[ua-1]?.[la-1]?.[w-1]?.[wt] ?? 9) + s.mA + s.fA;
-  const tB  = [
-    [1,3,2,3,3,4,5,5,6,6,7,7],[2,3,2,3,4,5,5,6,6,7,7,7],
-    [3,4,3,4,4,5,6,6,7,7,7,7],[5,5,4,5,5,6,7,7,7,7,8,8],
-    [7,7,5,6,6,7,7,8,8,8,8,8],[8,8,7,7,7,8,8,9,9,9,9,9]
-  ];
-  const n   = Math.min(s.neck  + (s.neckT?1:0)  + (s.neckS?1:0),  6);
-  const t   = Math.min(s.trunk + (s.trunkT?1:0) + (s.trunkS?1:0), 6);
-  const lg  = Math.min(s.legs, 2);
-  const sB  = (tB[n-1]?.[t + (lg-1)*6 - 1] ?? 9) + s.mB + s.fB;
-  const tC  = [
-    [1,2,3,3,4,5,5],[2,2,3,4,4,5,5],[3,3,3,4,4,5,6],[3,3,3,4,5,6,6],
-    [4,4,4,5,6,7,7],[4,4,5,6,6,7,7],[5,5,6,6,7,7,7],[5,5,6,7,7,7,7]
-  ];
-  const fin = tC[Math.min(sA-1,7)]?.[Math.min(sB-1,6)] ?? 7;
-  const level = fin<=2?0 : fin<=3?1 : fin<=4?2 : fin<=6?3 : 4;
-  return {sA, sB, fin, level};
-}
-
-// ── CÁLCULO MMC ───────────────────────────────────────────────────────────
-// Norma base: RM 375-2008-TR por sexo
-// ISO 11228 mostrado como referencia complementaria
+// ── CÁLCULO MMC (sin cambios sustanciales) ────────────────────────────────
 function calcMMC(s, sexo) {
   const sx  = sexo === "femenino" ? "femenino" : "masculino";
   const rm  = NORMA.rm375[sx];
   const row = NORMA.iso.find(x => x.g === s.grupo)
            || (sx === "masculino" ? NORMA.iso[0] : NORMA.iso[3]);
   const isoLim = s.frec==="ocasional" ? row.o : s.frec==="frecuente" ? row.f : row.mf;
-  // RM 375 es el límite aplicable (norma peruana base)
   const limAp = rm.general;
   const exc   = Math.max(s.peso - limAp, 0);
   const pct   = limAp > 0 ? ((s.peso / limAp - 1) * 100) : 0;
@@ -484,7 +644,7 @@ function NIOSHPanel({s, set}) {
         </div>
         <div>
           <Num label="Ángulo asimetría A [°]"   val={s.A} onChange={v=>u("A",v)} min={0} max={135}/>
-          <Num label="Frecuencia F [lev/min]"   val={s.F} onChange={v=>u("F",v)} min={0.1} max={15} step={0.1}/>
+          <Num label="Frecuencia F [lev/min]"   val={s.F} onChange={v=>u("F",v)} min={0} max={15} step={0.1}/>
           <Sel label="Duración" val={s.dur} onChange={v=>u("dur",v)}
             opts={[["<1h","< 1 hora"],["1-2h","1-2 horas"],["2-8h","2-8 horas"]]}/>
           <Sel label="Acoplamiento" val={s.coup} onChange={v=>u("coup",v)}
@@ -585,18 +745,15 @@ function MMCPanel({s, set, sexo}) {
 }
 
 // ── PARSER IA → FORMULARIO ────────────────────────────────────────────────
-// Lee el texto estructurado del Worker y extrae valores para el panel de revisión
 function parseIA(txt, m) {
-  // Extrae número entre corchetes en una línea que contenga el patrón
   const num = (pat, maxVal) => {
     const line = txt.split("\n").find(l => pat.test(l));
     if (!line) return null;
-    const m = line.match(/\[(\d)\]/);
-    if (!m) return null;
-    const v = parseInt(m[1]);
+    const mt = line.match(/\[(\d)\]/);
+    if (!mt) return null;
+    const v = parseInt(mt[1]);
     return maxVal ? Math.min(v, maxVal) : v;
   };
-  // Extrae sí/no de una línea que contenga el patrón
   const bool = pat => {
     const line = txt.split("\n").find(l => pat.test(l));
     if (!line) return null;
@@ -616,7 +773,6 @@ function parseIA(txt, m) {
     const wrist = num(/MUÑECA|MU.ECA/i, 2); if (wrist !== null) vals.wrist = wrist;
     const coup  = num(/ACOPLAMIENTO/i, 3); if (coup !== null) vals.coup = coup;
     const act   = num(/ACTIVIDAD/i,  3); if (act  !== null) vals.act  = act;
-    // Carga: busca kg en línea CARGA o extrae score
     const cargaLine = txt.split("\n").find(l => /^CARGA/i.test(l.trim()));
     if (cargaLine) {
       const kgM = cargaLine.match(/(\d+(?:\.\d+)?)\s*kg/i);
@@ -650,7 +806,6 @@ function parseIA(txt, m) {
     const trunkS = bool(/Inclinación.*tronco/i); if (trunkS!== null) vals.trunkS= trunkS;
 
   } else if (m === "OWAS") {
-    // Intenta leer código directo primero: ej "Código: 4232" o "[4][2][3][2]"
     const codeM = txt.match(/[Cc][oó]digo[^\d]*(\d)(\d)(\d)(\d)/);
     if (codeM) {
       vals.back = parseInt(codeM[1]);
@@ -665,7 +820,6 @@ function parseIA(txt, m) {
     }
 
   } else if (m === "NIOSH") {
-    // Busca patrón "H (distancia horizontal): 45 cm"
     const H = txt.match(/\bH\b[^:\n]*:\s*\[?(\d+(?:\.\d+)?)\]?\s*cm/i);
     const V = txt.match(/\bV\b[^:\n]*:\s*\[?(\d+(?:\.\d+)?)\]?\s*cm/i);
     const D = txt.match(/\bD\b[^:\n]*:\s*\[?(\d+(?:\.\d+)?)\]?\s*cm/i);
@@ -686,24 +840,15 @@ function parseIA(txt, m) {
   return Object.keys(vals).length > 0 ? vals : null;
 }
 
-// ── PROPAGACIÓN: SOLO REBA → MMC (factores de riesgo, no valores posturales) ──
-// Cada método ergonómico se evalúa de forma independiente.
-// La única propagación válida es de REBA hacia MMC, porque comparten
-// los mismos factores de riesgo observados (torsión, agarre, frecuencia).
+// ── PROPAGACIÓN: SOLO REBA → MMC ──────────────────────────────────────────
 function extractMMCFactors(vals, sourceMethod, texto) {
-  // Solo propaga desde REBA
   if (sourceMethod !== "REBA") return [];
   const f = [];
   const add = id => { if (!f.includes(id)) f.push(id); };
-  // Torsión de tronco → factor de asimetría MMC
   if (vals.trunkT === true) add("asim");
-  // Acoplamiento malo/inaceptable → agarre deficiente
   if (vals.coup !== undefined && vals.coup >= 2) add("agr");
-  // Actividad repetitiva → alta frecuencia
   if (vals.act  !== undefined && vals.act  >= 2) add("freq");
-  // Piernas en cuclillas/rodillas → postura desfavorable (altura)
   if (vals.legs !== undefined && vals.legs >= 3) add("alt");
-  // Desde texto libre de valoración clínica IA
   if (texto) {
     if (/superficie.*inestable/i.test(texto))              add("sue");
     if (/carga.*inestable/i.test(texto))                   add("ines");
@@ -712,6 +857,273 @@ function extractMMCFactors(vals, sourceMethod, texto) {
     if (/encima.*hombro|bajo.*rodilla|nivel del suelo/i.test(texto)) add("alt");
   }
   return f;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CORRECCIÓN MODERADA #6: PERSISTENCIA localStorage
+// ══════════════════════════════════════════════════════════════════════════
+const STORAGE_KEY = "panacea_ergo_session";
+
+function saveSession(data) {
+  try {
+    // No guardar fotos en localStorage (muy grandes)
+    const toSave = {...data, photos: data.photos?.map(p => ({...p, url: ""})) || []};
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch(e) { /* localStorage full or unavailable */ }
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function clearSession() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CORRECCIÓN MODERADA #9: Validación de datos Step 0
+// ══════════════════════════════════════════════════════════════════════════
+function validateStep0(info) {
+  const errors = [];
+  if (!info.empresa.trim())    errors.push("Empresa es obligatorio");
+  if (!info.trabajador.trim()) errors.push("Trabajador es obligatorio");
+  if (!info.metodos.length)    errors.push("Seleccione al menos un método");
+  return errors;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RECOMENDACIONES Y CONCLUSIONES ANALÍTICAS
+// Generadas a partir de los hallazgos específicos de cada evaluación
+// ══════════════════════════════════════════════════════════════════════════
+function getRecomendaciones(ri, reba, rula, owas, niosh, mmc, info) {
+  const ing = [];
+  const adm = [];
+  const vig = [];
+  const mmcR = ri.MMC;
+  const sx = info.sexo === "femenino" ? "femenino" : "masculino";
+  const limAp = mmcR ? mmcR.limAp : NORMA.rm375[sx].general;
+
+  // ── Identificar factores de riesgo predominantes ──
+  const hayFlexTronco    = (ri.REBA && reba.trunk >= 3) || (ri.RULA && rula.trunk >= 3) || (ri.OWAS && owas.back >= 2);
+  const hayTorsion       = (ri.REBA && reba.trunkT) || (ri.RULA && rula.trunkT) || (ri.OWAS && owas.back >= 3);
+  const hayBrazosAltos   = (ri.REBA && reba.ua >= 3) || (ri.RULA && rula.ua >= 3) || (ri.OWAS && owas.arms >= 2);
+  const hayMunecaRiesgo  = (ri.REBA && (reba.wrist >= 2 || reba.wristT)) || (ri.RULA && (rula.wrist >= 2 || rula.wristT));
+  const hayPiernasRiesgo = (ri.REBA && reba.legs >= 3) || (ri.OWAS && (owas.legs >= 4 && owas.legs <= 6));
+  const hayAgarreMalo    = (ri.REBA && reba.coup >= 2);
+  const hayCargaPesada   = (mmcR && !mmcR.cumRM) || (ri.NIOSH && parseFloat(ri.NIOSH.LI) > 1);
+  const hayLIalto        = ri.NIOSH && parseFloat(ri.NIOSH.LI) > 1;
+  const hayRepeticion    = (ri.REBA && reba.act >= 2) || (ri.RULA && rula.mA >= 1) || (mmcR && mmc.frec === "muyFrecuente");
+  const hayEstatico      = (ri.REBA && reba.act === 1) || (ri.RULA && rula.mA >= 1);
+  const hayCuelloRiesgo  = (ri.REBA && reba.neck >= 2) || (ri.RULA && rula.neck >= 3);
+  const sinCapacitacion  = mmcR && mmc.form === "no";
+  const maxLevel = Math.max(
+    ri.REBA?.level ?? 0, ri.RULA?.level ?? 0,
+    ri.OWAS ? ri.OWAS.level : 0,
+    ri.NIOSH?.level ?? 0, ri.MMC?.level ?? 0
+  );
+
+  // ── INGENIERÍA: solo lo que corresponde ──
+  if (hayFlexTronco) {
+    if (reba.trunk >= 4 || (ri.OWAS && owas.back >= 3)) {
+      ing.push(`Instalar mesa o plataforma elevada (70-90 cm) para eliminar la flexión de tronco ${reba.trunk===4?">60°":"significativa"} durante la manipulación. La flexión actual compromete L4-L5 y L5-S1.`);
+    }
+    ing.push("Reorganizar zona de acopio: mantener la carga entre la altura de rodillas y hombros del operador (60-130 cm) para reducir la demanda lumbar.");
+  }
+  if (hayCargaPesada) {
+    if (hayLIalto && parseFloat(ri.NIOSH.LI) > 3) {
+      ing.push(`Implementar ayuda mecánica obligatoria (transpaleta, carretilla o elevador): el Índice de Levantamiento de ${ri.NIOSH.LI} indica riesgo inaceptable. RWL actual = ${ri.NIOSH.RWL} kg.`);
+    } else if (mmcR && !mmcR.cumRM) {
+      ing.push(`Incorporar ayuda mecánica para eliminar la manipulación de ${mmc.peso} kg que excede el límite RM 375 de ${limAp} kg.`);
+    } else {
+      ing.push(`Considerar ayuda mecánica para reducir la carga biomecánica, dado que el LI = ${ri.NIOSH?.LI || "N/A"} indica riesgo incrementado.`);
+    }
+  }
+  if (hayAgarreMalo) {
+    ing.push(`Proveer contenedores con asideros ergonómicos o asas laterales. El agarre actual (nivel ${reba.coup}: ${["bueno","regular","malo","inaceptable"][reba.coup]}) incrementa la fuerza de prensión requerida y el riesgo de lesión en muñeca.`);
+  }
+  if (hayBrazosAltos) {
+    ing.push(`Rediseñar la zona de depósito/alcance para que no requiera elevación de brazos por encima de ${reba.ua>=4||rula.ua>=4?"90°":"45°"}. Considerar estanterías ajustables o plataformas escalonadas.`);
+  }
+  if (hayPiernasRiesgo) {
+    ing.push("Elevar la zona de trabajo para eliminar la necesidad de cuclillas o flexión extrema de rodillas. Considerar plataforma de nivel ajustable o carro de apoyo.");
+  }
+  if (hayTorsion && !hayFlexTronco) {
+    ing.push("Redistribuir la estación de trabajo para que el operador no requiera giro/torsión de tronco: colocar origen y destino de la carga en el mismo plano frontal.");
+  }
+  if (hayLIalto && ri.NIOSH) {
+    const n = ri.NIOSH;
+    if (parseFloat(n.HM) < 0.7) {
+      ing.push(`Acercar la carga al cuerpo: la distancia horizontal actual (H=${niosh.H}cm) genera un multiplicador HM=${parseFloat(n.HM).toFixed(2)} que reduce significativamente el peso aceptable.`);
+    }
+    if (parseFloat(n.AM) < 0.85) {
+      ing.push(`Eliminar la asimetría de levantamiento: el ángulo A=${niosh.A}° genera AM=${parseFloat(n.AM).toFixed(2)}. Reorientar la estación para levantamiento simétrico.`);
+    }
+  }
+  if (ri.OWAS && ri.OWAS.cat >= 3 && !hayFlexTronco && !hayBrazosAltos) {
+    ing.push("Rediseñar la estación de trabajo para permitir postura erguida con acceso frontal.");
+  }
+  if (ing.length === 0) {
+    ing.push("Las condiciones de ingeniería actuales son aceptables. Mantener monitoreo periódico y verificar ante cambios en el proceso.");
+  }
+
+  // ── ADMINISTRATIVAS: según hallazgos ──
+  if (hayFlexTronco || hayCargaPesada || hayTorsion) {
+    adm.push("Capacitación específica en técnica de levantamiento biomecánicamente segura: flexión de rodillas, carga pegada al cuerpo, espalda neutra, sin torsión durante el esfuerzo.");
+  }
+  if (hayCargaPesada || hayLIalto) {
+    adm.push(`Establecer límite operativo de ${limAp} kg por persona. Para cargas superiores, trabajo en equipo de 2 personas obligatorio con protocolo de coordinación.`);
+  }
+  if (hayRepeticion) {
+    adm.push("Rotación de tareas: máximo 30 minutos continuos en la actividad de riesgo, alternando con tareas de menor demanda biomecánica.");
+  }
+  if (maxLevel >= 3) {
+    adm.push("Pausas activas obligatorias de 5 minutos cada hora con ejercicios de estiramiento dirigidos a las zonas comprometidas.");
+  } else if (maxLevel >= 2) {
+    adm.push("Pausas activas de 5 minutos cada 2 horas con ejercicios de movilización articular.");
+  }
+  if (hayEstatico && !hayRepeticion) {
+    adm.push("Implementar alternancia postural: no mantener la misma postura estática por más de 20 minutos continuos.");
+  }
+  if (sinCapacitacion) {
+    adm.push("Capacitación inmediata en manejo manual de cargas — la ausencia constituye agravante según RM 375-2008-TR Art. 6.");
+  }
+  if (ri.RULA && ri.RULA.level >= 3 && hayMunecaRiesgo) {
+    adm.push("Implementar micro-pausas de 30 segundos cada 15 minutos para extremidades superiores y ejercicios de estiramiento de flexores/extensores de muñeca.");
+  }
+  if (adm.length === 0) {
+    adm.push("Mantener las medidas administrativas actuales con refuerzo periódico de buenas prácticas.");
+  }
+
+  // ── VIGILANCIA MÉDICA: dirigida según segmentos comprometidos ──
+  if (hayFlexTronco || hayTorsion) {
+    vig.push("Evaluación de columna lumbar: test de Lasègue, Schober modificado, palpación paravertebral L4-L5 y L5-S1. Considerar radiografía lumbar AP-lateral si hay sintomatología.");
+  }
+  if (hayBrazosAltos) {
+    vig.push("Evaluación de hombros: maniobras de Neer, Hawkins-Kennedy, Jobe y Speed para despistaje de tendinopatía del manguito rotador y bíceps.");
+  }
+  if (hayMunecaRiesgo) {
+    vig.push("Evaluación de muñecas y manos: test de Phalen, Tinel, Finkelstein. Electromiografía si hay parestesias o debilidad de prensión.");
+  }
+  if (hayPiernasRiesgo) {
+    vig.push("Evaluación de rodillas: signo de Clarke, maniobra de McMurray, evaluación de estabilidad ligamentaria. Rx de rodillas si hay crepitación o dolor.");
+  }
+  if (hayCuelloRiesgo) {
+    vig.push("Evaluación cervical: rango de movilidad activa, test de Spurling, palpación de musculatura suboccipital y trapecios superiores.");
+  }
+  if (vig.length === 0) {
+    vig.push("Evaluación musculoesquelética general de rutina en EMO periódico.");
+  }
+  vig.push("Aplicación del Cuestionario Nórdico Musculoesquelético (NMQ) para detección temprana de sintomatología.");
+
+  if (maxLevel >= 3) {
+    vig.push("Re-evaluación ergonómica en 60 días post-implementación de medidas correctivas para verificar efectividad.");
+  } else if (maxLevel >= 2) {
+    vig.push("Re-evaluación ergonómica en 90 días post-implementación de medidas correctivas.");
+  } else {
+    vig.push("Re-evaluación ergonómica semestral de seguimiento.");
+  }
+
+  return {ing, adm, vig};
+}
+
+// ── CONCLUSIONES ANALÍTICAS ──
+function getConclusiones(ri, reba, rula, owas, niosh, mmc, info) {
+  const c = [];
+  const sx = info.sexo === "masculino" ? "varón" : "mujer";
+  const maxLevel = Math.max(
+    ri.REBA?.level ?? 0, ri.RULA?.level ?? 0,
+    ri.OWAS ? ri.OWAS.level : 0,
+    ri.NIOSH?.level ?? 0, ri.MMC?.level ?? 0
+  );
+
+  // 1. Hallazgo principal por método predominante
+  if (ri.REBA) {
+    const niv = NORMA.rebaRiesgo.find(x => ri.REBA.fin <= x.max) || NORMA.rebaRiesgo[4];
+    // Identificar factores principales que más contribuyen al score
+    const factores = [];
+    if (reba.trunk >= 3) factores.push(`flexión de tronco ${reba.trunk===4?">60°":"20-60°"}`);
+    if (reba.legs >= 3)  factores.push(`postura en ${reba.legs===4?"cuclillas profundas":"semisquatting"}`);
+    if (reba.ua >= 3)    factores.push(`elevación de brazo ${reba.ua===4?">90°":"45-90°"}`);
+    if (reba.load >= 2)  factores.push("carga >10 kg");
+    if (reba.coup >= 2)  factores.push(`agarre ${["","","deficiente","inaceptable"][reba.coup]}`);
+    if (reba.trunkT)     factores.push("torsión de tronco");
+    if (reba.neck >= 2)  factores.push("flexión cervical >20°");
+
+    c.push(`La evaluación REBA arroja una puntuación de ${ri.REBA.fin}/15 (Nivel ${ri.REBA.level} — ${niv.nivel}), lo que indica ${niv.accion.toLowerCase()}. ${factores.length > 0 ? `Los factores determinantes son: ${factores.join(", ")}.` : ""}`);
+  }
+
+  if (ri.RULA) {
+    const acc = NORMA.rulaAccion.find(x => ri.RULA.fin <= x.max) || NORMA.rulaAccion[3];
+    const factoresR = [];
+    if (rula.ua >= 3)    factoresR.push(`brazo superior en ${rula.ua===4?">90°":"45-90°"}`);
+    if (rula.wrist >= 2) factoresR.push("desviación de muñeca");
+    if (rula.neck >= 3)  factoresR.push("flexión cervical >20°");
+    if (rula.trunk >= 3) factoresR.push(`tronco en ${rula.trunk===4?">60°":"20-60°"}`);
+    c.push(`RULA: Score ${ri.RULA.fin} — ${acc.nivel} (${acc.accion.toLowerCase()}).${factoresR.length > 0 ? ` Factores: ${factoresR.join(", ")}.` : ""}`);
+  }
+
+  if (ri.OWAS) {
+    const factoresO = [];
+    if (owas.back >= 2) factoresO.push(["","recta","doblada","girada","doblada con giro"][owas.back]);
+    if (owas.arms >= 2) factoresO.push(owas.arms===3?"ambos brazos sobre hombros":"un brazo sobre hombros");
+    if (owas.legs >= 4 && owas.legs <= 6) factoresO.push("postura en cuclillas/arrodillado");
+    c.push(`OWAS: Código ${ri.OWAS.code}, Categoría ${ri.OWAS.cat} — ${ri.OWAS.action.toLowerCase()}.${factoresO.length > 0 ? ` Espalda ${factoresO.join(", ")}.` : ""}`);
+  }
+
+  if (ri.NIOSH) {
+    const li = parseFloat(ri.NIOSH.LI);
+    const riskDesc = li <= 1 ? "aceptable" : li <= 2 ? "incrementado" : li <= 3 ? "significativo" : "inaceptable";
+    c.push(`Ecuación NIOSH: LI = ${ri.NIOSH.LI} (riesgo ${riskDesc}), RWL = ${ri.NIOSH.RWL} kg. ${li > 1 ? `El peso actual de ${niosh.L} kg supera el límite recomendado de ${ri.NIOSH.RWL} kg para las condiciones geométricas del puesto.` : `El peso de ${niosh.L} kg está dentro del límite recomendado.`}`);
+  }
+
+  if (ri.MMC && mmc.peso > 0) {
+    const cumpleTexto = [];
+    if (!ri.MMC.cumRM) cumpleTexto.push(`excede el límite RM 375 de ${ri.MMC.limRM} kg en ${ri.MMC.exc} kg`);
+    if (!ri.MMC.cumISO) cumpleTexto.push(`excede el límite ISO 11228-1 de ${ri.MMC.limISO} kg para frecuencia ${mmc.frec}`);
+    if (ri.MMC.cumRM && ri.MMC.cumISO) {
+      c.push(`MMC: El peso de ${mmc.peso} kg cumple los límites normativos (RM 375: ${ri.MMC.limRM} kg, ISO 11228: ${ri.MMC.limISO} kg).${ri.REBA && reba.trunk >= 3 ? ` Sin embargo, la postura comprometida de tronco reduce el límite biomecánicamente seguro a 10-15 kg, generando sobrecarga relativa.` : ""} ${ri.MMC.nF > 0 ? `Se identificaron ${ri.MMC.nF} factores de riesgo adicionales.` : ""}`);
+    } else {
+      c.push(`MMC: El peso de ${mmc.peso} kg ${cumpleTexto.join(" y ")}. ${ri.MMC.nF > 0 ? `Además, se identificaron ${ri.MMC.nF} factores agravantes.` : ""}`);
+    }
+  }
+
+  // TME probables según hallazgos combinados
+  const tme = [];
+  if ((ri.REBA && reba.trunk >= 3) || (ri.RULA && rula.trunk >= 3) || (ri.OWAS && owas.back >= 2)) {
+    tme.push("lumbalgia mecánica y/o hernia discal lumbar (L4-L5, L5-S1)");
+  }
+  if ((ri.REBA && reba.ua >= 3) || (ri.RULA && rula.ua >= 3)) {
+    tme.push("tendinopatía del manguito rotador");
+  }
+  if ((ri.REBA && reba.wrist >= 2) || (ri.RULA && rula.wrist >= 2)) {
+    tme.push("síndrome del túnel carpiano");
+  }
+  if (ri.REBA && reba.legs >= 3) {
+    tme.push("condropatía rotuliana");
+  }
+  if ((ri.REBA && reba.neck >= 2) || (ri.RULA && rula.neck >= 3)) {
+    tme.push("cervicalgia y cefalea tensional");
+  }
+  if (tme.length > 0 && maxLevel >= 2) {
+    c.push(`De mantenerse las condiciones actuales, los TME con mayor probabilidad de desarrollo son: ${tme.join(", ")}.`);
+  }
+
+  // Conclusión final adaptada al nivel
+  if (maxLevel >= 4) {
+    c.push(`Se requiere intervención ergonómica INMEDIATA e impostergable. Las condiciones actuales representan riesgo inminente de lesión musculoesquelética ocupacional.`);
+  } else if (maxLevel >= 3) {
+    c.push(`Se requiere intervención ergonómica a corto plazo, priorizando controles de ingeniería sobre los factores de riesgo predominantes identificados.`);
+  } else if (maxLevel >= 2) {
+    c.push(`Se recomienda implementar las medidas correctivas propuestas y re-evaluar en 90 días para verificar la reducción del riesgo.`);
+  } else {
+    c.push(`El riesgo ergonómico actual es bajo. Se recomienda mantener las condiciones actuales con vigilancia periódica.`);
+  }
+
+  return c;
 }
 
 // ── APP PRINCIPAL ─────────────────────────────────────────────────────────
@@ -726,8 +1138,8 @@ function App() {
   });
   const [photos,  setPhotos]  = useState([]);
   const [method,  setMethod]  = useState(null);
+  const [valErrors, setValErrors] = useState([]);
 
-  // Estados de cada método con valores iniciales neutros
   const [reba, setReba] = useState({
     neck:1,neckT:false,neckS:false,trunk:1,trunkT:false,trunkS:false,
     legs:1,load:0,shock:false,ua:1,shr:false,abd:false,sup:false,
@@ -744,16 +1156,40 @@ function App() {
     peso:0, grupo:"Varón adulto (18-45 años)", frec:"frecuente", form:"no", factores:[]
   });
 
-  // Estado IA
-  const [aiMsg,       setAiMsg]       = useState({});   // {REBA:"...", RULA:"...", ...}
+  const [aiMsg,       setAiMsg]       = useState({});
   const [aiLoad,      setAiLoad]      = useState(false);
   const [activePhoto, setActivePhoto] = useState(null);
-  const [reviewData,  setReviewData]  = useState(null); // {method, vals}
+  const [reviewData,  setReviewData]  = useState(null);
+  const [aiCollapsed, setAiCollapsed] = useState({});
   const [filled,      setFilled]      = useState(false);
   const [hallazgos,   setHallazgos]   = useState("");
   const [tareasDesc,  setTareasDesc]  = useState([]);
 
-  const [aiMinimized, setAiMinimized] = useState(false);
+  const fileRef = useRef();
+
+  // ── Auto-guardado en localStorage ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveSession({info, reba, rula, owas, niosh, mmc, step, hallazgos, tareasDesc});
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [info, reba, rula, owas, niosh, mmc, step, hallazgos, tareasDesc]);
+
+  // ── Carga sesión anterior al inicio ──
+  useEffect(() => {
+    const saved = loadSession();
+    if (saved) {
+      if (saved.info)     setInfo(saved.info);
+      if (saved.reba)     setReba(saved.reba);
+      if (saved.rula)     setRula(saved.rula);
+      if (saved.owas)     setOwas(saved.owas);
+      if (saved.niosh)    setNiosh(saved.niosh);
+      if (saved.mmc)      setMmc(saved.mmc);
+      if (saved.step !== undefined) setStep(saved.step);
+      if (saved.hallazgos)  setHallazgos(saved.hallazgos);
+      if (saved.tareasDesc) setTareasDesc(saved.tareasDesc);
+    }
+  }, []);
 
   // Ajusta grupo MMC automáticamente cuando cambia el sexo
   useEffect(() => {
@@ -763,6 +1199,20 @@ function App() {
       setMmc(p => ({...p, grupo:"Varón adulto (18-45 años)"}));
   }, [info.sexo]);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // CORRECCIÓN MODERADA #9: Validación sexo ↔ grupo MMC manual
+  // ══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const esMasc = info.sexo === "masculino";
+    const grupoMasc = mmc.grupo.includes("Varón");
+    if (esMasc && !grupoMasc) {
+      setMmc(p => ({...p, grupo: p.grupo.replace("Mujer","Varón")}));
+    }
+    if (!esMasc && grupoMasc) {
+      setMmc(p => ({...p, grupo: p.grupo.replace("Varón","Mujer")}));
+    }
+  }, [info.sexo, mmc.grupo]);
+
   const toggleMethod = m => setInfo(p => ({
     ...p,
     metodos: p.metodos.includes(m)
@@ -770,11 +1220,13 @@ function App() {
       : [...p.metodos, m]
   }));
 
-  // Comprime imagen antes de enviar al Worker
+  // ══════════════════════════════════════════════════════════════════════════
+  // CORRECCIÓN CRÍTICA #5: Compresión más agresiva + límite de dimensiones
+  // ══════════════════════════════════════════════════════════════════════════
   const compress = url => new Promise(res => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 800;
+      const MAX = 640; // Reducido de 800 para menor consumo de memoria
       let {width:w, height:h} = img;
       if (w>MAX||h>MAX) {
         if (w>h) { h=Math.round(h*MAX/w); w=MAX; }
@@ -783,12 +1235,11 @@ function App() {
       const c = document.createElement("canvas");
       c.width=w; c.height=h;
       c.getContext("2d").drawImage(img,0,0,w,h);
-      res(c.toDataURL("image/jpeg",0.75));
+      res(c.toDataURL("image/jpeg",0.65)); // Calidad reducida de 0.75 a 0.65
     };
     img.src = url;
   });
 
-  // Llama al Worker con una imagen
   const callWorker = async (photoUrl, m) => {
     const comp = await compress(photoUrl);
     const r = await fetch(WORKER_URL, {
@@ -800,7 +1251,6 @@ function App() {
     return d.result || d.error || "Sin respuesta.";
   };
 
-  // Analiza una sola foto
   const analyzeOne = async (photoUrl, m) => {
     if (!m) return;
     setAiLoad(true); setFilled(false);
@@ -809,12 +1259,14 @@ function App() {
       setAiMsg(p => ({...p, [m]:txt}));
       afterAnalysis(txt, m);
     } catch(e) {
-      setAiMsg(p => ({...p, [m]:"Error de conexión."}));
+      setAiMsg(p => ({...p, [m]:"Error de conexión: " + (e.message||"intente de nuevo.")}));
     }
     setAiLoad(false);
   };
 
-  // Analiza todas las fotos secuencialmente
+  // ══════════════════════════════════════════════════════════════════════════
+  // CORRECCIÓN MODERADA #10: analyzeAll consolida TODAS las fotos en el parseo
+  // ══════════════════════════════════════════════════════════════════════════
   const analyzeAll = async m => {
     if (!m || !photos.length) return;
     setAiLoad(true); setFilled(false); setAiMsg(p => ({...p, [m]:""}));
@@ -822,26 +1274,74 @@ function App() {
       const results = [];
       for (let i=0; i<photos.length; i++) {
         const txt = await callWorker(photos[i].url, m);
-        results.push(`📸 ${photos[i].label}:\n${txt}`);
+        results.push({label: photos[i].label, txt});
       }
       const final = results.length === 1
-        ? results[0]
-        : `✅ ANÁLISIS CONSOLIDADO (${results.length} fotos)\n${"─".repeat(40)}\n${results.join("\n\n─────\n\n")}`;
+        ? results[0].txt
+        : `✅ ANÁLISIS CONSOLIDADO (${results.length} fotos)\n${"─".repeat(40)}\n${results.map(r => `📸 ${r.label}:\n${r.txt}`).join("\n\n─────\n\n")}`;
       setAiMsg(p => ({...p, [m]:final}));
-      afterAnalysis(results[0], m); // parsea la primera foto para revisión
+
+      // Parsear TODAS las fotos y hacer merge de valores
+      // La última foto con un valor válido gana (permite refinar con fotos adicionales)
+      let mergedVals = {};
+      for (const r of results) {
+        const parsed = parseIA(r.txt, m);
+        if (parsed) {
+          mergedVals = {...mergedVals, ...parsed};
+        }
+      }
+      // Post-análisis con valores consolidados
+      afterAnalysisMerged(mergedVals, m, results.map(r=>r.txt).join("\n"));
     } catch(e) {
-      setAiMsg(p => ({...p, [m]:"Error de conexión."}));
+      setAiMsg(p => ({...p, [m]:"Error de conexión: " + (e.message||"intente de nuevo.")}));
     }
     setAiLoad(false);
   };
 
-  // Post-análisis: parsea texto y prepara panel de revisión
+  // Post-análisis consolidado (para analyzeAll)
+  const afterAnalysisMerged = (mergedVals, m, fullText) => {
+    // Extrae valoración clínica
+    const valM = fullText.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*(.+?)(?:\n\n|$)/si);
+    if (valM) setHallazgos(valM[1].trim());
+
+    // Detecta tareas
+    const tareas = [];
+    if (/transporte|desplazamiento|traslado/i.test(fullText))
+      tareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
+    if (/flexión.*tronco|recoger.*suelo|levantar.*suelo/i.test(fullText))
+      tareas.push("Tarea B: Flexión de tronco para recoger carga desde el nivel del suelo.");
+    if (/cuclillas|rodillas.*flexion|agarre.*suelo/i.test(fullText))
+      tareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
+    if (tareas.length > 0) setTareasDesc(tareas);
+
+    if (m === "MMC") {
+      const f = [];
+      fullText.split("\n").forEach(line => {
+        if (/Alta frecuencia/i.test(line)      && /sí|si/i.test(line)) f.push("freq");
+        if (/Torsión tronco/i.test(line)        && /sí|si/i.test(line)) f.push("asim");
+        if (/Agarre deficiente/i.test(line)     && /sí|si/i.test(line)) f.push("agr");
+        if (/Espacio restringido/i.test(line)   && /sí|si/i.test(line)) f.push("esp");
+        if (/Carga inestable/i.test(line)       && /sí|si/i.test(line)) f.push("ines");
+        if (/Superficie inestable/i.test(line)  && /sí|si/i.test(line)) f.push("sue");
+        if (/Sin ayudas/i.test(line)            && /sí|si/i.test(line)) f.push("eq");
+        if (/Distancia horizontal/i.test(line)  && /sí|si/i.test(line)) f.push("dist");
+        if (/Encima.*hombro|bajo.*rodilla/i.test(line) && /sí|si/i.test(line)) f.push("alt");
+      });
+      if (f.length > 0) setMmc(p => ({...p, factores:[...new Set([...p.factores,...f])]}));
+      setFilled(true);
+      return;
+    }
+
+    if (Object.keys(mergedVals).length > 0) {
+      setReviewData({method:m, vals:mergedVals});
+    }
+  };
+
+  // Post-análisis para foto individual (se mantiene compatible)
   const afterAnalysis = (txt, m) => {
-    // Extrae valoración clínica para el informe
     const valM = txt.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*(.+?)(?:\n\n|$)/si);
     if (valM) setHallazgos(valM[1].trim());
 
-    // Detecta tareas desde texto
     const tareas = [];
     if (/transporte|desplazamiento|traslado/i.test(txt))
       tareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
@@ -851,7 +1351,6 @@ function App() {
       tareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
     if (tareas.length > 0) setTareasDesc(tareas);
 
-    // MMC: extrae factores directamente si ese es el método
     if (m === "MMC") {
       const f = [];
       txt.split("\n").forEach(line => {
@@ -870,25 +1369,19 @@ function App() {
       return;
     }
 
-    // Para otros métodos: parsea y muestra panel de revisión
     const vals = parseIA(txt, m);
     if (vals) setReviewData({method:m, vals});
   };
 
-  // Confirma valores del panel de revisión
-  // Cada método se aplica de forma independiente.
-  // Solo REBA propaga factores de riesgo a MMC (no valores posturales).
   const confirmReview = () => {
     if (!reviewData) return;
     const {method:m, vals} = reviewData;
 
-    // Aplica los valores al método confirmado
     if      (m==="REBA")  setReba(p  => ({...p,...vals}));
     else if (m==="RULA")  setRula(p  => ({...p,...vals}));
     else if (m==="OWAS")  setOwas(p  => ({...p,...vals}));
     else if (m==="NIOSH") setNiosh(p => ({...p,...vals}));
 
-    // Solo REBA → MMC: propaga factores de riesgo (no valores posturales)
     if (m==="REBA" && info.metodos.includes("MMC")) {
       const newF = extractMMCFactors(vals, "REBA", aiMsg["REBA"]||"");
       if (newF.length > 0) {
@@ -900,7 +1393,6 @@ function App() {
     setReviewData(null);
   };
 
-  // Calcula todos los resultados
   const getRes = () => {
     const r = {};
     if (info.metodos.includes("REBA"))  r.REBA  = calcReba(reba);
@@ -918,84 +1410,23 @@ function App() {
   const IS = {width:"100%",padding:"9px 12px",border:`1px solid ${C.cb}`,
     borderRadius:8,background:C.inp,fontSize:13,color:C.text,boxSizing:"border-box"};
 
-  const [recsIA,    setRecsIA]    = useState("");  // recomendaciones generadas por IA
-  const [conclIA,   setConclIA]   = useState("");  // conclusiones generadas por IA
-  const [genLoad,   setGenLoad]   = useState(false);
-
-  // Genera recomendaciones y conclusiones con IA basadas en los resultados reales
-  const generarRecsConclIA = async (resultados, datosInfo, datosMmc, datosReba) => {
-    setGenLoad(true);
-    try {
-      const resumen = Object.entries(resultados).map(([m,r]) => {
-        if (m==="REBA")  return `REBA: Score ${r.fin}/15 — Nivel ${r.level} (${RL[r.level]}) — A:${r.sA} B:${r.sB} C:${r.sC}`;
-        if (m==="RULA")  return `RULA: Score ${r.fin} — Nivel ${r.level} (${RL[r.level]})`;
-        if (m==="OWAS")  return `OWAS: Código ${r.code} — Categoría ${r.cat} — ${r.action}`;
-        if (m==="NIOSH") return `NIOSH: LI=${r.LI} — RWL=${r.RWL}kg — Nivel ${r.level} (${RL[r.level]})`;
-        if (m==="MMC")   return `MMC: ${datosMmc.peso}kg — RM375 ${r.cumRM?"CUMPLE":"INCUMPLE"} (${r.limRM}kg) — ISO ${r.cumISO?"CUMPLE":"INCUMPLE"} (${r.limISO}kg) — Riesgo ${RL[r.level]}`;
-        return "";
-      }).join("\n");
-
-      const contexto = [
-        `Cargo: ${datosInfo.cargo||datosInfo.puesto||"no especificado"}`,
-        `Tarea: ${datosInfo.tarea||"no especificada"}`,
-        `Empresa: ${datosInfo.empresa}`,
-        datosInfo.metodos.includes("REBA") ? [
-          `Tronco: nivel ${datosReba.trunk}${datosReba.trunkT?" + torsión":""}`,
-          `Cuello: nivel ${datosReba.neck}`,
-          `Piernas: nivel ${datosReba.legs}`,
-          `Brazo sup: nivel ${datosReba.ua}`,
-          `Carga REBA: ${datosReba.load===2?">10kg":datosReba.load===1?"5-10kg":"<5kg"}${datosReba.shock?" + fuerza brusca":""}`,
-          `Agarre: ${["bueno","regular","malo","inaceptable"][datosReba.coup]}`,
-          `Actividad: ${["normal","estático","repetitivo","cambios rápidos"][datosReba.act]}`,
-        ].join(" · ") : "",
-        datosMmc.peso>0 ? `Carga real: ${datosMmc.peso}kg — ${datosMmc.frec} — capacitación: ${datosMmc.form==="si"?"sí":"no"}` : "",
-        datosMmc.factores.length>0 ? `Factores de riesgo MMC: ${datosMmc.factores.join(", ")}` : "",
-      ].filter(Boolean).join("\n");
-
-      const prompt = `Eres el Dr. Wenceslao Ochoa Cuadros, médico especialista en Medicina Ocupacional y del Medio Ambiente (UPCH), CMP 102517. Redacta en primera persona como evaluador.
-
-RESULTADOS DE LA EVALUACIÓN:
-${resumen}
-
-CONTEXTO DEL PUESTO:
-${contexto}
-
-Redacta DOS secciones en español, con lenguaje médico-ocupacional preciso y profesional:
-
-RECOMENDACIONES:
-- Basadas EXACTAMENTE en los hallazgos específicos de esta evaluación
-- Divididas en: Ingeniería (con medidas concretas según los segmentos comprometidos), Administrativas (rotación, límites de carga, capacitación), Vigilancia Médica (exámenes específicos según TME identificados)
-- Menciona segmentos corporales específicos comprometidos
-- Si hay carga, menciona el límite normativo aplicable
-- Máximo 250 palabras
-
-CONCLUSIONES:
-- Síntesis de los hallazgos más relevantes de esta evaluación específica
-- Mención de los factores de mayor contribución al riesgo
-- Pronóstico de TME específicos si no hay intervención
-- Referencia a la normativa aplicada (RM 375-2008-TR si aplica)
-- Máximo 150 palabras
-
-NO uses frases genéricas. Todo debe referirse a este caso específico.`;
-
-      const r = await fetch(WORKER_URL, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({imageBase64:null, mediaType:null, method:"__TEXT__", prompt})
-      });
-      const d = await r.json();
-      const txt = d.result || "";
-      const recsM = txt.match(/RECOMENDACIONES[:\s]*([\s\S]*?)(?=CONCLUSIONES|$)/i);
-      const conclM = txt.match(/CONCLUSIONES[:\s]*([\s\S]*?)$/i);
-      if (recsM)  setRecsIA(recsM[1].trim());
-      if (conclM) setConclIA(conclM[1].trim());
-    } catch(e) {
-      setRecsIA("Error al generar recomendaciones. Revisa la conexión.");
-    }
-    setGenLoad(false);
-  };
+  const wrap = ch => (
     <div style={{minHeight:"100vh",background:C.bg,padding:20,maxWidth:900,margin:"0 auto"}}>
-      <Header/><Bar step={step}/>{ch}
+      <Header/><Bar step={step}/>
+      {/* Botón nueva evaluación */}
+      <div className="noprint" style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+        <button onClick={() => {
+          if (confirm("¿Iniciar nueva evaluación? Se perderán los datos no guardados.")) {
+            clearSession();
+            window.location.reload();
+          }
+        }} style={{background:"transparent",border:`1px solid ${C.cb}`,
+          borderRadius:8,padding:"4px 12px",fontSize:11,color:C.muted,
+          cursor:"pointer"}}>
+          🔄 Nueva evaluación
+        </button>
+      </div>
+      {ch}
     </div>
   );
 
@@ -1003,12 +1434,13 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
   if (step===0) return wrap(
     <Card title="📋 Datos del Puesto de Trabajo">
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        {[["empresa","Empresa / Cliente"],["trabajador","Trabajador"],["dni","DNI"],
+        {[["empresa","Empresa / Cliente *"],["trabajador","Trabajador *"],["dni","DNI"],
           ["cargo","Cargo"],["puesto","Puesto de Trabajo"],["area","Área / Sección"],
           ["tarea","Tarea Evaluada"],["evaluador","Evaluador"]].map(([k,l]) => (
           <div key={k}>
             <div style={{fontSize:11,color:C.muted,marginBottom:3,fontWeight:600}}>{l}</div>
-            <input value={info[k]} onChange={e=>setInfo(p=>({...p,[k]:e.target.value}))} style={IS}/>
+            <input value={info[k]} onChange={e=>setInfo(p=>({...p,[k]:e.target.value}))}
+              style={{...IS, borderColor: (k==="empresa"||k==="trabajador") && valErrors.length && !info[k].trim() ? "#EF4444" : C.cb}}/>
           </div>
         ))}
         <div>
@@ -1026,7 +1458,7 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
       </div>
       <div style={{marginTop:14}}>
         <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,textTransform:"uppercase"}}>
-          Métodos a aplicar:
+          Métodos a aplicar: *
         </div>
         <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
           {METHODS.map(m => {
@@ -1047,8 +1479,20 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
           })}
         </div>
       </div>
-      <Nav onNext={() => setStep(1)} nextLabel="Siguiente: Fotos →"
-        disabled={!info.empresa || !info.metodos.length}/>
+      {/* Errores de validación */}
+      {valErrors.length > 0 && (
+        <div style={{marginTop:12,padding:"10px 14px",background:"#FEE2E2",
+          border:"1.5px solid #EF4444",borderRadius:8}}>
+          {valErrors.map((e,i) => (
+            <div key={i} style={{fontSize:12,color:"#991B1B",fontWeight:600}}>⚠ {e}</div>
+          ))}
+        </div>
+      )}
+      <Nav onNext={() => {
+        const errs = validateStep0(info);
+        setValErrors(errs);
+        if (errs.length === 0) setStep(1);
+      }} nextLabel="Siguiente: Fotos →"/>
     </Card>
   );
 
@@ -1057,6 +1501,7 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
     <Card title="📸 Fotografías del Puesto">
       <p style={{color:C.muted,fontSize:13,marginBottom:14}}>
         Sube fotos del trabajador — la IA las analizará automáticamente en el paso siguiente.
+        {photos.length > 0 && <span style={{marginLeft:8,fontWeight:700,color:C.orange}}>{photos.length} foto(s) cargada(s)</span>}
       </p>
       <div onClick={() => fileRef.current.click()} style={{
         border:`2px dashed ${C.orange}88`,borderRadius:12,
@@ -1066,18 +1511,27 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
         <div style={{fontSize:36,marginBottom:8}}>📷</div>
         <div style={{fontWeight:700,color:C.orange,fontSize:15}}>Subir fotos del trabajador</div>
         <div style={{fontSize:12,color:C.muted,marginTop:4}}>
-          Lateral · Anterior · Posterior · JPG PNG WEBP
+          Lateral · Anterior · Posterior · JPG PNG WEBP · Máx. 6 fotos
         </div>
       </div>
       <input ref={fileRef} type="file" accept="image/*" multiple style={{display:"none"}}
-        onChange={e => Array.from(e.target.files).forEach((f,i) => {
-          const r = new FileReader();
-          r.onload = ev => setPhotos(p => [...p, {
-            url: ev.target.result, name: f.name,
-            label: ["Lateral","Anterior","Posterior","Adicional "+(i+1)][Math.min(i,3)]
-          }]);
-          r.readAsDataURL(f);
-        })}/>
+        onChange={e => {
+          const files = Array.from(e.target.files);
+          const maxPhotos = 6;
+          const remaining = maxPhotos - photos.length;
+          if (remaining <= 0) {
+            alert("Máximo 6 fotos por evaluación.");
+            return;
+          }
+          files.slice(0, remaining).forEach((f,i) => {
+            const r = new FileReader();
+            r.onload = ev => setPhotos(p => [...p, {
+              url: ev.target.result, name: f.name,
+              label: ["Lateral","Anterior","Posterior","Adicional "+(i+1)][Math.min(photos.length+i,3)]
+            }]);
+            r.readAsDataURL(f);
+          });
+        }}/>
       {photos.length > 0 && (
         <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
           {photos.map((p,i) => (
@@ -1101,7 +1555,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
   // ── STEP 2: EVALUACIÓN ───────────────────────────────────────────────────
   if (step===2) return wrap(
     <div>
-      {/* Selector de método */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
         {info.metodos.map(m => (
           <button key={m} onClick={() => {setMethod(m); setFilled(false); setReviewData(null);}}
@@ -1116,27 +1569,10 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
         ))}
       </div>
 
-      {/* Panel IA */}
       {method && (
-        <Card title="">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-            marginBottom: aiMinimized?0:14,
-            paddingBottom: aiMinimized?0:10,
-            borderBottom: aiMinimized?"none":`1px solid ${C.cb}`}}>
-            <div style={{fontWeight:700,fontSize:15,color:C.orange}}>
-              🤖 Análisis IA — {method}
-            </div>
-            <button onClick={()=>setAiMinimized(v=>!v)} style={{
-              background:"none",border:`1px solid ${C.cb}`,borderRadius:6,
-              padding:"3px 10px",cursor:"pointer",fontSize:12,color:C.muted,fontWeight:600}}>
-              {aiMinimized?"▼ Expandir":"▲ Minimizar"}
-            </button>
-          </div>
-          {!aiMinimized && (
-            <div>
+        <Card title={`🤖 Análisis IA — ${method}`}>
           {photos.length > 0 ? (
             <div>
-              {/* Botón analizar todas */}
               <button onClick={() => analyzeAll(method)} disabled={aiLoad} style={{
                 width:"100%", padding:"14px", marginBottom:12,
                 background: aiLoad ? C.muted : `linear-gradient(135deg,${C.header},${C.orange})`,
@@ -1149,7 +1585,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                   ? `⏳ Analizando ${photos.length} foto(s)...`
                   : `✦ Analizar todas las fotos con IA (${photos.length}) →`}
               </button>
-              {/* Fotos individuales */}
               <div style={{fontSize:11,color:C.muted,marginBottom:8}}>
                 O haz clic en una foto individual:
               </div>
@@ -1177,7 +1612,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
             </div>
           )}
 
-          {/* Spinner cargando */}
           {aiLoad && (
             <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12,
               padding:"12px 16px",background:`${C.orange}11`,
@@ -1190,7 +1624,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
             </div>
           )}
 
-          {/* Panel de revisión */}
           {reviewData && reviewData.method===method && (
             <div style={{marginTop:12,borderRadius:12,overflow:"hidden",
               border:`2px solid ${C.orange}`,background:"#FFFAF5"}}>
@@ -1230,9 +1663,9 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                             {v?"Sí":"No"}
                           </label>
                         ) : (
-                          <input type={k==="coup"?"text":"number"} value={v}
+                          <input type={k==="coup"&&m==="NIOSH"?"text":"number"} value={v}
                             onChange={e => setReviewData(rd => ({
-                              ...rd, vals:{...rd.vals,[k]:k==="coup"?e.target.value:+e.target.value}
+                              ...rd, vals:{...rd.vals,[k]:k==="coup"&&method==="NIOSH"?e.target.value:+e.target.value}
                             }))}
                             style={{width:"100%",padding:"4px 8px",
                               border:`1px solid ${C.cb}`,borderRadius:6,
@@ -1273,6 +1706,34 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                   );
                 })()}
 
+                {/* Vista previa RULA */}
+                {method==="RULA" && (() => {
+                  const prev = calcRula({...rula,...reviewData.vals});
+                  const acc  = NORMA.rulaAccion.find(x=>prev.fin<=x.max) || NORMA.rulaAccion[3];
+                  return (
+                    <div style={{background:C.r[prev.level]+"15",
+                      border:`1.5px solid ${C.r[prev.level]}`,
+                      borderRadius:10,padding:12,marginBottom:12}}>
+                      <div style={{fontWeight:700,fontSize:13,color:C.r[prev.level],marginBottom:6}}>
+                        Vista previa RULA:
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,fontSize:12}}>
+                        {[["GRUPO A",prev.sA],["GRUPO B",prev.sB],["FINAL",prev.fin]].map(([l,v],i) => (
+                          <div key={i} style={{textAlign:"center",borderRadius:6,padding:6,
+                            background: i===2 ? C.r[prev.level] : "white",
+                            color: i===2 ? "white" : C.text}}>
+                            <div style={{fontSize:10,opacity:0.7}}>{l}</div>
+                            <div style={{fontWeight:800,fontSize:18}}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{marginTop:8,fontSize:12,fontWeight:700,color:C.r[prev.level]}}>
+                        {acc.nivel} — {acc.accion}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={confirmReview} style={{
                     flex:1,padding:"11px",
@@ -1292,7 +1753,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
             </div>
           )}
 
-          {/* Banner valores aplicados */}
           {filled && !reviewData && (
             <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,
               padding:"10px 14px",background:"#f0fdf4",
@@ -1304,32 +1764,32 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
             </div>
           )}
 
-          {/* Resultado IA */}
           {aiMsg[method] && (
             <div style={{marginTop:12,borderRadius:12,overflow:"hidden",
               border:`2px solid ${C.orange}`}}>
-              <div style={{background:`linear-gradient(135deg,${C.header},${C.orange})`,
+              <div onClick={() => setAiCollapsed(p => ({...p,[method]:!p[method]}))}
+                style={{background:`linear-gradient(135deg,${C.header},${C.orange})`,
                 color:"white",padding:"10px 16px",fontWeight:700,fontSize:13,
-                display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                display:"flex",justifyContent:"space-between",alignItems:"center",
+                cursor:"pointer",userSelect:"none"}}>
                 <span>🩺 Análisis IA — {method}</span>
-                <button onClick={() => setAiMsg(p => ({...p,[method]:""}))}
-                  style={{background:"rgba(255,255,255,0.2)",border:"none",
-                    color:"white",cursor:"pointer",fontSize:14,borderRadius:6,padding:"2px 8px"}}>
-                  ✕
-                </button>
+                <span style={{fontSize:18,lineHeight:1,transition:"transform 0.2s",
+                  transform:aiCollapsed[method]?"rotate(-90deg)":"rotate(0deg)"}}>
+                  ▾
+                </span>
               </div>
-              <div style={{padding:16,fontSize:12,whiteSpace:"pre-wrap",lineHeight:1.75,
-                fontFamily:"monospace",color:C.text,maxHeight:360,overflowY:"auto",
-                background:"#FDFAF6"}}>
-                {aiMsg[method]}
-              </div>
-              </div>
+              {!aiCollapsed[method] && (
+                <div style={{padding:16,fontSize:12,whiteSpace:"pre-wrap",lineHeight:1.75,
+                  fontFamily:"monospace",color:C.text,maxHeight:360,overflowY:"auto",
+                  background:"#FDFAF6"}}>
+                  {aiMsg[method]}
+                </div>
+              )}
             </div>
           )}
         </Card>
       )}
 
-      {/* Panel del método seleccionado */}
       {method==="REBA"  && <REBAPanel  s={reba}  set={setReba}/>}
       {method==="RULA"  && <RULAPanel  s={rula}  set={setRula}/>}
       {method==="OWAS"  && <OWASPanel  s={owas}  set={setOwas}/>}
@@ -1392,14 +1852,21 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
   const isoRow  = NORMA.iso.find(x => x.g===mmc.grupo)
                || (info.sexo==="femenino" ? NORMA.iso[3] : NORMA.iso[0]);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // CORRECCIÓN MODERADA #8: Numeración secuencial correcta
+  // ══════════════════════════════════════════════════════════════════════════
+  let secNum = 0;
+  const nextSec = () => ++secNum;
+
+  // Recomendaciones dinámicas
+  const recs = getRecomendaciones(ri, reba, rula, owas, niosh, mmc, info);
+  const conclusiones = getConclusiones(ri, reba, rula, owas, niosh, mmc, info);
+
   return wrap(
     <div>
       <div className="noprint" style={{marginBottom:14,display:"flex",gap:8}}>
         <OBtn label="🖨 Imprimir / PDF" onClick={() => window.print()}/>
         <OBtn label="← Resultados" onClick={() => setStep(3)} outline/>
-        <OBtn label={genLoad?"⏳ Generando...":"✦ Generar Recs. y Conclusiones con IA"}
-          onClick={() => generarRecsConclIA(ri, info, mmc, reba)}
-          disabled={genLoad} small/>
       </div>
 
       <div style={{background:"white",maxWidth:800,margin:"0 auto",padding:40,
@@ -1488,68 +1955,72 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
         )}
 
         {/* 1. Introducción */}
-        <div style={{marginBottom:20}}>
-          <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:8,
-            borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-            1. Introducción y Metodología
+        {(() => { const n = nextSec(); return (
+          <div style={{marginBottom:20}}>
+            <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:8,
+              borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
+              {n}. Introducción y Metodología
+            </div>
+            <p>La presente evaluación ergonómica fue realizada mediante {info.metodos.length>1?"los métodos":"el método"} <strong>{info.metodos.join(", ")}</strong>, herramienta(s) validada(s) internacionalmente para la valoración del riesgo postural en el ámbito ocupacional.</p>
+            <p style={{marginTop:8}}>Marco normativo aplicado: <strong>RM N° 375-2008-TR</strong> (Norma Básica de Ergonomía, Perú) e <strong>ISO 11228-1:2003</strong>.</p>
+            {ri.MMC && (
+              <p style={{marginTop:6,fontSize:12,color:C.mid}}>
+                Límites RM 375-2008-TR: <strong>Varón 25 kg</strong> (entrenado: 40 kg) ·{" "}
+                <strong>Mujer 15 kg</strong> (entrenada: 25 kg).
+                ISO 11228-1 complementa con límites por frecuencia: {mmc.grupo} —
+                ocasional {isoRow.o}kg / frecuente {isoRow.f}kg / muy frecuente {isoRow.mf}kg.
+              </p>
+            )}
           </div>
-          <p>La presente evaluación ergonómica fue realizada mediante {info.metodos.length>1?"los métodos":"el método"} <strong>{info.metodos.join(", ")}</strong>, herramienta(s) validada(s) internacionalmente para la valoración del riesgo postural en el ámbito ocupacional.</p>
-          <p style={{marginTop:8}}>Marco normativo aplicado: <strong>RM N° 375-2008-TR</strong> (Norma Básica de Ergonomía, Perú) e <strong>ISO 11228-1:2003</strong>.</p>
-          {ri.MMC && (
-            <p style={{marginTop:6,fontSize:12,color:C.mid}}>
-              Límites RM 375-2008-TR: <strong>Varón 25 kg</strong> (entrenado: 40 kg) ·{" "}
-              <strong>Mujer 15 kg</strong> (entrenada: 25 kg).
-              ISO 11228-1 complementa con límites por frecuencia: {mmc.grupo} —
-              ocasional {isoRow.o}kg / frecuente {isoRow.f}kg / muy frecuente {isoRow.mf}kg.
-            </p>
-          )}
-        </div>
+        );})()}
 
         {/* 2. Descripción del puesto */}
-        <div style={{marginBottom:20}}>
-          <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:8,
-            borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-            2. Descripción del Puesto de Trabajo
-          </div>
-          <div style={{background:C.bg,borderRadius:8,padding:12,marginBottom:10,fontSize:12}}>
-            <strong>Empresa:</strong> {info.empresa||"—"} ·{" "}
-            <strong>Área:</strong> {info.area||"—"} ·{" "}
-            <strong>Cargo:</strong> {info.cargo||"—"} ·{" "}
-            <strong>Puesto:</strong> {info.puesto||"—"}
-          </div>
-          {tareasDesc.length > 0 && (
-            <div style={{marginBottom:10}}>
-              <div style={{fontWeight:700,fontSize:12,color:C.mid,marginBottom:6}}>
-                Tareas con demanda física significativa:
+        {(() => { const n = nextSec(); return (
+          <div style={{marginBottom:20}}>
+            <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:8,
+              borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
+              {n}. Descripción del Puesto de Trabajo
+            </div>
+            <div style={{background:C.bg,borderRadius:8,padding:12,marginBottom:10,fontSize:12}}>
+              <strong>Empresa:</strong> {info.empresa||"—"} ·{" "}
+              <strong>Área:</strong> {info.area||"—"} ·{" "}
+              <strong>Cargo:</strong> {info.cargo||"—"} ·{" "}
+              <strong>Puesto:</strong> {info.puesto||"—"}
+            </div>
+            {tareasDesc.length > 0 && (
+              <div style={{marginBottom:10}}>
+                <div style={{fontWeight:700,fontSize:12,color:C.mid,marginBottom:6}}>
+                  Tareas con demanda física significativa:
+                </div>
+                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.9}}>
+                  {tareasDesc.map((t,i) => <li key={i}>{t}</li>)}
+                </ul>
               </div>
-              <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.9}}>
-                {tareasDesc.map((t,i) => <li key={i}>{t}</li>)}
-              </ul>
-            </div>
-          )}
-          {ri.MMC && mmc.peso > 0 && (
-            <div style={{background:"#FFF3E8",border:`1px solid ${C.orange}44`,
-              borderRadius:8,padding:12,fontSize:12}}>
-              <strong style={{color:C.orange}}>Características de la carga:</strong>
-              <ul style={{paddingLeft:20,marginTop:6,lineHeight:1.9}}>
-                <li>Peso por unidad: <strong>{mmc.peso} kg</strong></li>
-                <li>Frecuencia: <strong>{mmc.frec}</strong>
-                  {mmc.frec==="muyFrecuente"?" (>4/min — actividad repetitiva)":
-                   mmc.frec==="frecuente"?" (1-4/min)":""}</li>
-                <li>Capacitación MMC: <strong>{mmc.form==="si"?"Sí":"No (agravante RM 375 Art.6)"}</strong></li>
-                {mmc.factores.includes("agr") && <li>Agarre deficiente: sin asas, superficie irregular</li>}
-                {mmc.factores.includes("sue") && <li>Superficie de trabajo inestable o irregular</li>}
-                {mmc.factores.includes("alt") && <li>Zona de levantamiento desfavorable: encima de hombros o bajo rodillas</li>}
-              </ul>
-            </div>
-          )}
-        </div>
+            )}
+            {ri.MMC && mmc.peso > 0 && (
+              <div style={{background:"#FFF3E8",border:`1px solid ${C.orange}44`,
+                borderRadius:8,padding:12,fontSize:12}}>
+                <strong style={{color:C.orange}}>Características de la carga:</strong>
+                <ul style={{paddingLeft:20,marginTop:6,lineHeight:1.9}}>
+                  <li>Peso por unidad: <strong>{mmc.peso} kg</strong></li>
+                  <li>Frecuencia: <strong>{mmc.frec}</strong>
+                    {mmc.frec==="muyFrecuente"?" (>4/min — actividad repetitiva)":
+                     mmc.frec==="frecuente"?" (1-4/min)":""}</li>
+                  <li>Capacitación MMC: <strong>{mmc.form==="si"?"Sí":"No (agravante RM 375 Art.6)"}</strong></li>
+                  {mmc.factores.includes("agr") && <li>Agarre deficiente: sin asas, superficie irregular</li>}
+                  {mmc.factores.includes("sue") && <li>Superficie de trabajo inestable o irregular</li>}
+                  {mmc.factores.includes("alt") && <li>Zona de levantamiento desfavorable: encima de hombros o bajo rodillas</li>}
+                </ul>
+              </div>
+            )}
+          </div>
+        );})()}
 
-        {/* 3. Resultados REBA */}
+        {/* Resultados REBA */}
         {ri.REBA && (() => {
+          const n   = nextSec();
           const r   = ri.REBA;
           const niv = NORMA.rebaRiesgo.find(x => r.fin<=x.max) || NORMA.rebaRiesgo[4];
-          // Hallazgos clínicos descriptivos generados desde los valores seleccionados
           const descTronco = reba.trunk===1 ? "Posición erecta, sin flexión significativa"
             : reba.trunk===2 ? "Flexión anterior 0-20°, postura levemente comprometida"
             : reba.trunk===3 ? "Flexión anterior 20-60°, carga en zona media-distal"
@@ -1577,9 +2048,8 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
             <div style={{marginBottom:20}}>
               <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:12,
                 borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-                3. Resultados REBA
+                {n}. Resultados REBA
               </div>
-              {/* Tabla Grupo A */}
               <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
                 Grupo A — Tronco, Cuello y Piernas
               </div>
@@ -1597,11 +2067,11 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                     ["Piernas",     descPiernas, reba.legs,  `Nivel ${reba.legs}`],
                     ["Carga/Fuerza",descCarga,   `+${reba.load}${reba.shock?"+1":""}`,
                       ["<5kg","5-10kg",">10kg"][reba.load]+(reba.shock?" + shock":"")],
-                  ].map(([seg,hal,niv,crit],i) => (
+                  ].map(([seg,hal,niv2,crit],i) => (
                     <tr key={i} style={{background:i%2===0?C.bg:"white",borderBottom:`1px solid ${C.cb}`}}>
                       <td style={{padding:"6px 10px",fontWeight:600,whiteSpace:"nowrap"}}>{seg}</td>
                       <td style={{padding:"6px 10px",fontSize:11,color:C.mid}}>{hal}</td>
-                      <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,color:C.orange}}>{niv}</td>
+                      <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,color:C.orange}}>{niv2}</td>
                       <td style={{padding:"6px 10px",color:C.muted,whiteSpace:"nowrap"}}>{crit}</td>
                     </tr>
                   ))}
@@ -1612,7 +2082,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                   </tr>
                 </tbody>
               </table>
-              {/* Tabla Grupo B */}
               <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
                 Grupo B — Brazo, Antebrazo y Muñeca
               </div>
@@ -1629,11 +2098,11 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                     ["Brazo Inferior", descBrazoI, reba.la,    ["60-100°","<60° o >100°"][reba.la-1]],
                     ["Muñeca",         descMuneca, `${reba.wrist}${reba.wristT?"+1":""}`, ["0-15°",">15°"][reba.wrist-1]],
                     ["Agarre",         descAgarre, `+${reba.coup}`, `+${reba.coup}`],
-                  ].map(([seg,hal,niv,crit],i) => (
+                  ].map(([seg,hal,niv2,crit],i) => (
                     <tr key={i} style={{background:i%2===0?C.bg:"white",borderBottom:`1px solid ${C.cb}`}}>
                       <td style={{padding:"6px 10px",fontWeight:600,whiteSpace:"nowrap"}}>{seg}</td>
                       <td style={{padding:"6px 10px",fontSize:11,color:C.mid}}>{hal}</td>
-                      <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,color:C.orange}}>{niv}</td>
+                      <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,color:C.orange}}>{niv2}</td>
                       <td style={{padding:"6px 10px",color:C.muted,whiteSpace:"nowrap"}}>{crit}</td>
                     </tr>
                   ))}
@@ -1644,7 +2113,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                   </tr>
                 </tbody>
               </table>
-              {/* Tabla C y score final */}
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:12}}>
                 <tbody>
                   {[["Puntuación Tabla A",r.sA],["Puntuación Tabla B",r.sB],
@@ -1665,7 +2133,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                   </tr>
                 </tbody>
               </table>
-              {/* Interpretación clínica + TME + marco normativo */}
               <div style={{background:C.r[r.level]+"12",border:`1.5px solid ${C.r[r.level]}`,
                 borderRadius:10,padding:14,fontSize:12,lineHeight:1.8}}>
                 <div style={{fontWeight:700,color:C.r[r.level],marginBottom:6,fontSize:13}}>
@@ -1688,7 +2155,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                     </ul>
                   </>
                 )}
-                {/* Marco normativo contextualizado */}
                 {ri.MMC && mmc.peso>0 && reba.trunk>=3 && (
                   <div style={{marginTop:10,padding:"8px 12px",background:"white",
                     borderRadius:8,border:`1px solid ${C.orange}44`,fontSize:12}}>
@@ -1701,10 +2167,6 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                       <strong>10-15 kg</strong>. Los <strong>{mmc.peso} kg</strong> manipulados representan
                       sobrecarga relativa por postura comprometida, aun cuando técnicamente se encuentren
                       dentro del límite normativo general.
-                    </p>
-                    <p style={{marginTop:4}}>
-                      Guía técnica INSHT: flexión de tronco {reba.trunk===4?">60°":"20-60°"} sin soporte
-                      es factor de riesgo mayor para hernia discal lumbar y lumbalgia crónica ocupacional.
                     </p>
                   </div>
                 )}
@@ -1722,14 +2184,14 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
 
         {/* Resultados RULA */}
         {ri.RULA && (() => {
+          const n   = nextSec();
           const r   = ri.RULA;
           const acc = NORMA.rulaAccion.find(x => r.fin<=x.max) || NORMA.rulaAccion[3];
-          const sec = ri.REBA ? "4" : "3";
           return (
             <div style={{marginBottom:20}}>
               <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
                 borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-                {sec}. Resultados RULA
+                {n}. Resultados RULA
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:8}}>
                 <thead><tr style={{background:C.orange,color:"white"}}>
@@ -1766,17 +2228,17 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
 
         {/* Resultados OWAS */}
         {ri.OWAS && (() => {
+          const n   = nextSec();
           const r   = ri.OWAS;
           const BL  = ["","Recta","Doblada","Girada","Doblada+girada"];
           const AL  = ["","Ambos bajo hombros","Uno sobre hombros","Ambos sobre hombros"];
           const LL  = ["","Sentado","De pie rectas","Peso en una","Flex rodillas","Una rodilla","Arrodillado","Caminando"];
           const CL  = ["","<10kg","10-20kg",">20kg"];
-          const base= (ri.REBA?1:0)+(ri.RULA?1:0)+3;
           return (
             <div style={{marginBottom:20}}>
               <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
                 borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-                {base}. Resultados OWAS
+                {n}. Resultados OWAS
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                 <thead><tr style={{background:C.orange,color:"white"}}>
@@ -1809,13 +2271,13 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
 
         {/* Resultados NIOSH */}
         {ri.NIOSH && (() => {
-          const r   = ri.NIOSH;
-          const base= (ri.REBA?1:0)+(ri.RULA?1:0)+(ri.OWAS?1:0)+3;
+          const n = nextSec();
+          const r = ri.NIOSH;
           return (
             <div style={{marginBottom:20}}>
               <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
                 borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-                {base}. Resultados NIOSH
+                {n}. Resultados NIOSH
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                 <thead><tr style={{background:C.orange,color:"white"}}>
@@ -1850,13 +2312,13 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
 
         {/* Resultados MMC */}
         {ri.MMC && mmc.peso>0 && (() => {
-          const r   = ri.MMC;
-          const base= (ri.REBA?1:0)+(ri.RULA?1:0)+(ri.OWAS?1:0)+(ri.NIOSH?1:0)+3;
+          const n = nextSec();
+          const r = ri.MMC;
           return (
             <div style={{marginBottom:20}}>
               <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
                 borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-                {base}. MMC — RM N° 375-2008-TR / ISO 11228-1
+                {n}. MMC — RM N° 375-2008-TR / ISO 11228-1
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:8}}>
                 <tbody>
@@ -1925,87 +2387,58 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
           </div>
         )}
 
-        {/* Recomendaciones */}
-        <div style={{marginBottom:20}}>
-          <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
-            borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
-            Recomendaciones Ergonómicas
-          </div>
-          {recsIA ? (
-            <div style={{fontSize:12,lineHeight:1.9,whiteSpace:"pre-wrap",color:C.text}}>
-              {recsIA}
+        {/* Recomendaciones DINÁMICAS */}
+        {(() => { const n = nextSec(); return (
+          <div style={{marginBottom:20}}>
+            <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
+              borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
+              {n}. Recomendaciones Ergonómicas
             </div>
-          ) : (
+            <div style={{marginBottom:10}}>
+              <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
+                {n}.1 Medidas de Ingeniería (Inmediatas)
+              </div>
+              <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
+                {recs.ing.map((r,i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
+                {n}.2 Medidas Administrativas
+              </div>
+              <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
+                {recs.adm.map((r,i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
             <div>
-              <div style={{marginBottom:10}}>
-                <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>6.1 Medidas de Ingeniería (Inmediatas)</div>
-                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
-                  <li>Instalar mesa o plataforma elevada (70-90 cm) para eliminar levantamientos desde el suelo.</li>
-                  <li>Implementar carretilla o transpaleta para cargas superiores a {ri.MMC ? ri.MMC.limAp : 25} kg.</li>
-                  <li>Reorganizar acopio: altura entre rodillas y hombros del operador (60-130 cm).</li>
-                  {ri.REBA && reba.coup>=2 && <li>Instalar asideros o mecanismos de agarre para mejorar tipo de agarre y reducir desviación de muñeca.</li>}
-                </ul>
+              <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
+                {n}.3 Vigilancia Médica Ocupacional
               </div>
-              <div style={{marginBottom:10}}>
-                <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>6.2 Medidas Administrativas</div>
-                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
-                  <li>Capacitación en técnica correcta de levantamiento: rodillas flexionadas, carga pegada al cuerpo, espalda neutra, sin torsión.</li>
-                  <li>Límite individual: máximo {ri.MMC ? ri.MMC.limAp : 25} kg. Para cargas mayores, trabajo en equipo de 2 personas obligatorio.</li>
-                  <li>Rotación de tareas: máximo 30 minutos continuos de manipulación manual de cargas.</li>
-                  <li>Pausas activas de 5 minutos cada hora con ejercicios de estiramiento lumbar y hombros.</li>
-                </ul>
-              </div>
-              <div>
-                <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>6.3 Vigilancia Médica Ocupacional</div>
-                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
-                  <li>Evaluación musculoesquelética de columna lumbar (L4-L5, L5-S1), hombros y muñecas.</li>
-                  <li>Aplicación del Cuestionario Nórdico Musculoesquelético (NMQ) y CMDQ para detección temprana.</li>
-                  <li>Re-evaluación ergonómica en 90 días post-implementación de medidas correctivas.</li>
-                  {mmc.form==="no" && <li>Capacitación inmediata en MMC — agravante activo según RM 375-2008-TR Art. 6.</li>}
-                </ul>
-              </div>
-              <div style={{marginTop:10,padding:"10px 14px",background:"#FFF8F2",
-                border:`1px dashed ${C.orange}`,borderRadius:8,fontSize:12,color:C.orange}}>
-                💡 Haz clic en <strong>"Generar Recs. y Conclusiones con IA"</strong> para obtener recomendaciones específicas para este caso.
-              </div>
+              <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
+                {recs.vig.map((r,i) => <li key={i}>{r}</li>)}
+              </ul>
             </div>
-          )}
-        </div>
+          </div>
+        );})()}
 
-        {/* Conclusiones */}
-        <div style={{marginBottom:24}}>
-          <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
-            borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>Conclusiones</div>
-          {conclIA ? (
-            <div style={{fontSize:12,lineHeight:1.9,whiteSpace:"pre-wrap",color:C.text}}>
-              {conclIA}
+        {/* Conclusiones analíticas */}
+        {(() => { const n = nextSec(); return (
+          <div style={{marginBottom:24}}>
+            <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
+              borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
+              {n}. Conclusiones
             </div>
-          ) : (
             <ol style={{paddingLeft:20,fontSize:12,lineHeight:2}}>
-              {ri.REBA && (
-                <li>La evaluación REBA evidencia riesgo ergonómico{" "}
-                  <strong>{RL[ri.REBA.level]} (puntuación {ri.REBA.fin}/15 — Nivel {ri.REBA.level})</strong>{" "}
-                  en el puesto de {info.cargo||info.puesto||"trabajo evaluado"}.
-                </li>
-              )}
-              {ri.MMC && mmc.peso>0 && (
-                <li>Peso de {mmc.peso}kg: RM 375 {ri.MMC.cumRM?"✓":"✗"} ({ri.MMC.limRM}kg) · ISO 11228 {ri.MMC.cumISO?"✓":"✗"} ({ri.MMC.limISO}kg, {mmc.frec}).</li>
-              )}
-              {ri.NIOSH && <li>NIOSH: LI={ri.NIOSH.LI} · RWL={ri.NIOSH.RWL}kg — Riesgo {RL[ri.NIOSH.level]}.</li>}
-              {ri.RULA  && <li>RULA: Score {ri.RULA.fin} — Riesgo {RL[ri.RULA.level]}.</li>}
-              {ri.OWAS  && <li>OWAS: Código {ri.OWAS.code} — Categoría {ri.OWAS.cat} — {ri.OWAS.action}.</li>}
-              <li>Se requiere intervención ergonómica{" "}
-                <strong>{ri.REBA && ri.REBA.level>=3 ? "inmediata" : "a corto plazo"}</strong>.
-              </li>
+              {conclusiones.map((c,i) => <li key={i}>{c}</li>)}
             </ol>
-          )}
-        </div>
+          </div>
+        );})()}
 
         {/* Firma */}
         <div style={{borderTop:`2px solid ${C.cb}`,paddingTop:20,
           display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
           <div style={{fontSize:11,color:C.muted}}>
-            <div>Generado con PANACEA ERGO</div>
+            <div>Generado con PANACEA ERGO v2.1</div>
             <div>Normativa: RM 375-2008-TR · ISO 11228-1</div>
             <div>Documento confidencial — uso médico ocupacional</div>
           </div>
