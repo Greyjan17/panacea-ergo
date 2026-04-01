@@ -462,8 +462,8 @@ function App(){
   const [aiMsg,setAiMsg]=useState({});
   const [aiLoad,setAiLoad]=useState(false);
   const [activeP,setActiveP]=useState(null);
-  const [filled,setFilled]=useState(false);
-  const [reviewData,setReviewData]=useState(null);
+  const [hallazgos,setHallazgos]=useState(""); // texto clínico descriptivo para el informe
+  const [tareasDesc,setTareasDesc]=useState([]); // tareas A/B/C identificadas
   const fileRef=useRef();
 
   // Ajusta grupo MMC cuando cambia el sexo
@@ -625,8 +625,19 @@ function App(){
     if(!reviewData)return;
     const {method:m, vals} = reviewData;
 
-    // Aplica al método confirmado
-    if(m==="REBA") setReba(p=>({...p,...vals}));
+    // Extrae hallazgos clínicos de la valoración IA para el informe
+    const txt = aiMsg[m]||"";
+    if(txt && (m==="REBA"||m==="RULA")){
+      // Extrae la sección VALORACIÓN CLÍNICA
+      const valMatch = txt.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*(.+?)(?:\n\n|$)/si);
+      if(valMatch) setHallazgos(valMatch[1].trim());
+      // Intenta identificar tareas desde el texto
+      const tareas=[];
+      if(/transporte|desplazamiento|traslado/i.test(txt)) tareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
+      if(/flexión.*tronco|recoger.*suelo|suelo.*recoger|levantar.*suelo/i.test(txt)) tareas.push("Tarea B: Flexión de tronco para recoger carga desde el nivel del suelo.");
+      if(/cuclillas|squat|rodillas.*flexion|agarre.*suelo/i.test(txt)) tareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
+      if(tareas.length>0) setTareasDesc(tareas);
+    }
     else if(m==="RULA") setRula(p=>({...p,...vals}));
     else if(m==="OWAS") setOwas(p=>({...p,...vals}));
     else if(m==="NIOSH") setNiosh(p=>({...p,...vals}));
