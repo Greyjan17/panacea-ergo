@@ -1118,7 +1118,22 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
 
       {/* Panel IA */}
       {method && (
-        <Card title={`🤖 Análisis IA — ${method}`}>
+        <Card title="">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+            marginBottom: aiMinimized?0:14,
+            paddingBottom: aiMinimized?0:10,
+            borderBottom: aiMinimized?"none":`1px solid ${C.cb}`}}>
+            <div style={{fontWeight:700,fontSize:15,color:C.orange}}>
+              🤖 Análisis IA — {method}
+            </div>
+            <button onClick={()=>setAiMinimized(v=>!v)} style={{
+              background:"none",border:`1px solid ${C.cb}`,borderRadius:6,
+              padding:"3px 10px",cursor:"pointer",fontSize:12,color:C.muted,fontWeight:600}}>
+              {aiMinimized?"▼ Expandir":"▲ Minimizar"}
+            </button>
+          </div>
+          {!aiMinimized && (
+            <div>
           {photos.length > 0 ? (
             <div>
               {/* Botón analizar todas */}
@@ -1307,6 +1322,7 @@ NO uses frases genéricas. Todo debe referirse a este caso específico.`;
                 fontFamily:"monospace",color:C.text,maxHeight:360,overflowY:"auto",
                 background:"#FDFAF6"}}>
                 {aiMsg[method]}
+              </div>
               </div>
             </div>
           )}
