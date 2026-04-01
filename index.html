@@ -1155,13 +1155,13 @@ function App() {
 
   const fileRef = useRef();
 
-  // ── Auto-guardado en localStorage ──
+  // ── Auto-guardado en localStorage (debounce 3s) ──
   useEffect(() => {
     const timer = setTimeout(() => {
       saveSession({info, reba, rula, owas, niosh, mmc, step, hallazgos, tareasDesc});
-    }, 1000);
+    }, 3000);
     return () => clearTimeout(timer);
-  }, [info, reba, rula, owas, niosh, mmc, step, hallazgos, tareasDesc]);
+  }, [info, reba, rula, owas, niosh, mmc, step]);
 
   // ── Carga sesión anterior al inicio ──
   useEffect(() => {
@@ -1181,25 +1181,14 @@ function App() {
 
   // Ajusta grupo MMC automáticamente cuando cambia el sexo
   useEffect(() => {
-    if (info.sexo === "femenino" && mmc.grupo.includes("Varón"))
-      setMmc(p => ({...p, grupo:"Mujer adulta (18-45 años)"}));
-    if (info.sexo === "masculino" && mmc.grupo.includes("Mujer"))
-      setMmc(p => ({...p, grupo:"Varón adulto (18-45 años)"}));
+    setMmc(p => {
+      const esMasc = info.sexo === "masculino";
+      const grupoMasc = p.grupo.includes("Varón");
+      if (esMasc && !grupoMasc) return {...p, grupo: p.grupo.replace("Mujer","Varón")};
+      if (!esMasc && grupoMasc) return {...p, grupo: p.grupo.replace("Varón","Mujer")};
+      return p; // sin cambio → no re-render
+    });
   }, [info.sexo]);
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // CORRECCIÓN MODERADA #9: Validación sexo ↔ grupo MMC manual
-  // ══════════════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const esMasc = info.sexo === "masculino";
-    const grupoMasc = mmc.grupo.includes("Varón");
-    if (esMasc && !grupoMasc) {
-      setMmc(p => ({...p, grupo: p.grupo.replace("Mujer","Varón")}));
-    }
-    if (!esMasc && grupoMasc) {
-      setMmc(p => ({...p, grupo: p.grupo.replace("Varón","Mujer")}));
-    }
-  }, [info.sexo, mmc.grupo]);
 
   const toggleMethod = m => setInfo(p => ({
     ...p,
