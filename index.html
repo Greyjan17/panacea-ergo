@@ -169,6 +169,7 @@ function App() {
   const [aiMsg,setAiMsg]=useState({});
   const [aiLoad,setAiLoad]=useState(false);
   const [activeP,setActiveP]=useState(null);
+  const [autoFilled,setAutoFilled]=useState(false);
   const fileRef=useRef();
 
   const toggleM=m=>setInfo(p=>({...p,metodos:p.metodos.includes(m)?p.metodos.filter(x=>x!==m):[...p.metodos,m]}));
@@ -184,6 +185,91 @@ function App() {
     };img.src=url;
   });
 
+  // Parsea el texto IA y auto-puebla el formulario REBA
+  const autoFillReba = (text) => {
+    const n = (pat) => { const m = text.match(pat); return m ? parseInt(m[1]) : null; };
+    const b = (pat) => { const m = text.match(pat); return m ? /sí|si|yes/i.test(m[1]) : null; };
+    const vals = {};
+    const cuello = n(/CUELLO[^:]*:\s*\[?(\d)\]?/i); if(cuello) vals.neck = cuello;
+    const tronco = n(/TRONCO[^:]*:\s*\[?(\d)\]?/i); if(tronco) vals.trunk = tronco;
+    const piernas = n(/PIERNAS[^:]*:\s*\[?(\d)\]?/i); if(piernas) vals.legs = piernas;
+    const carga = n(/CARGA[^:]*:\s*\[?(\d)\]?/i); if(carga!==null) vals.load = carga;
+    const brazoS = n(/BRAZO SUPERIOR[^:]*:\s*\[?(\d)\]?/i); if(brazoS) vals.ua = brazoS;
+    const brazoI = n(/BRAZO INFERIOR[^:]*:\s*\[?(\d)\]?/i); if(brazoI) vals.la = brazoI;
+    const muneca = n(/MU[ÑN]ECA[^:]*:\s*\[?(\d)\]?/i); if(muneca) vals.wrist = muneca;
+    const acop = n(/ACOPLAMIENTO[^:]*:\s*\[?(\d)\]?/i); if(acop!==null) vals.coup = acop;
+    const act = n(/ACTIVIDAD[^:]*:\s*\[?(\d)\]?/i); if(act!==null) vals.act = act;
+    const tNeck = b(/Torsión[^:]*cuello[^:]*:\s*(sí|si|no|yes)/i) ?? b(/cuello.*[Tt]orsión[^:]*:\s*(sí|si|no|yes)/i);
+    if(tNeck!==null) vals.neckT = tNeck;
+    const tTrunk = b(/[Tt]orsión[^:]*tronco[^:]*:\s*(sí|si|no|yes)/i) ?? b(/tronco.*[Tt]orsión[^:]*:\s*(sí|si|no|yes)/i);
+    if(tTrunk!==null) vals.trunkT = tTrunk;
+    const shock = b(/[Ss]hock[^:]*:\s*(sí|si|no|yes)/i); if(shock!==null) vals.shock = shock;
+    const wristT = b(/[Tt]orsión[^:]*mu[ñn]eca[^:]*:\s*(sí|si|no|yes)/i) ?? b(/mu[ñn]eca.*[Tt]orsión[^:]*:\s*(sí|si|no|yes)/i);
+    if(wristT!==null) vals.wristT = wristT;
+    if(Object.keys(vals).length > 0) {
+      setReba(p => ({...p, ...vals}));
+      return Object.keys(vals).length;
+    }
+    return 0;
+  };
+
+  // Parsea RULA
+  const autoFillRula = (text) => {
+    const n = (pat) => { const m = text.match(pat); return m ? parseInt(m[1]) : null; };
+    const b = (pat) => { const m = text.match(pat); return m ? /sí|si|yes/i.test(m[1]) : null; };
+    const vals = {};
+    const ua = n(/BRAZO SUPERIOR[^:]*:\s*\[?(\d)\]?/i); if(ua) vals.ua = ua;
+    const la = n(/BRAZO INFERIOR[^:]*:\s*\[?(\d)\]?/i); if(la) vals.la = la;
+    const wrist = n(/MU[ÑN]ECA[^:]*:\s*\[?(\d)\]?/i); if(wrist) vals.wrist = wrist;
+    const neck = n(/CUELLO[^:]*:\s*\[?(\d)\]?/i); if(neck) vals.neck = neck;
+    const trunk = n(/TRONCO[^:]*:\s*\[?(\d)\]?/i); if(trunk) vals.trunk = trunk;
+    const legs = n(/PIERNAS[^:]*:\s*\[?(\d)\]?/i); if(legs) vals.legs = legs;
+    const mA = n(/[Mm]úsculo A[^:]*:\s*\[?(\d)\]?/i); if(mA!==null) vals.mA = mA;
+    const fA = n(/[Ff]uerza A[^:]*:\s*\[?(\d)\]?/i); if(fA!==null) vals.fA = fA;
+    const mB = n(/[Mm]úsculo B[^:]*:\s*\[?(\d)\]?/i); if(mB!==null) vals.mB = mB;
+    const fB = n(/[Ff]uerza B[^:]*:\s*\[?(\d)\]?/i); if(fB!==null) vals.fB = fB;
+    const shr = b(/[Hh]ombro elevado[^:]*:\s*(sí|si|no|yes)/i); if(shr!==null) vals.shr = shr;
+    const sup = b(/[Aa]poyado[^:]*:\s*(sí|si|no|yes)/i); if(sup!==null) vals.sup = sup;
+    const mid = b(/[Ll]ínea media[^:]*:\s*(sí|si|no|yes)/i); if(mid!==null) vals.mid = mid;
+    const wristT = b(/[Tt]orsión[^:]*mu[ñn]eca[^:]*:\s*(sí|si|no|yes)/i) ?? b(/mu[ñn]eca.*[Tt]orsión[^:]*:\s*(sí|si|no|yes)/i); if(wristT!==null) vals.wristT = wristT;
+    const neckT = b(/[Tt]orsión[^:]*cuello[^:]*:\s*(sí|si|no|yes)/i); if(neckT!==null) vals.neckT = neckT;
+    const neckS = b(/[Ii]nclinación[^:]*cuello[^:]*:\s*(sí|si|no|yes)/i); if(neckS!==null) vals.neckS = neckS;
+    const trunkT = b(/[Tt]orsión[^:]*tronco[^:]*:\s*(sí|si|no|yes)/i); if(trunkT!==null) vals.trunkT = trunkT;
+    const trunkS = b(/[Ii]nclinación[^:]*tronco[^:]*:\s*(sí|si|no|yes)/i); if(trunkS!==null) vals.trunkS = trunkS;
+    if(Object.keys(vals).length > 0) { setRula(p=>({...p,...vals})); return Object.keys(vals).length; }
+    return 0;
+  };
+  const autoFillOwas = (text) => {
+    const n = (pat) => { const m = text.match(pat); return m ? parseInt(m[1]) : null; };
+    const vals = {};
+    const back = n(/ESPALDA[^:]*:\s*\[?(\d)\]?/i); if(back) vals.back = back;
+    const arms = n(/BRAZOS[^:]*:\s*\[?(\d)\]?/i); if(arms) vals.arms = arms;
+    const legs = n(/PIERNAS[^:]*:\s*\[?(\d)\]?/i); if(legs) vals.legs = legs;
+    const load = n(/CARGA[^:]*:\s*\[?(\d)\]?/i); if(load) vals.load = load;
+    if(Object.keys(vals).length > 0) { setOwas(p=>({...p,...vals})); return Object.keys(vals).length; }
+    return 0;
+  };
+
+  // Parsea NIOSH
+  const autoFillNiosh = (text) => {
+    const n = (pat) => { const m = text.match(pat); return m ? parseFloat(m[1]) : null; };
+    const vals = {};
+    const H = n(/\bH[^\d]*(\d+(?:\.\d+)?)\s*cm/i); if(H) vals.H = H;
+    const V = n(/\bV[^\d]*(\d+(?:\.\d+)?)\s*cm/i); if(V) vals.V = V;
+    const D = n(/\bD[^\d]*(\d+(?:\.\d+)?)\s*cm/i); if(D) vals.D = D;
+    const A = n(/\bA[^\d]*(\d+(?:\.\d+)?)\s*°/i); if(A!==null) vals.A = A;
+    if(Object.keys(vals).length > 0) { setNiosh(p=>({...p,...vals})); return Object.keys(vals).length; }
+    return 0;
+  };
+
+  const autoFill = (text, m) => {
+    if(m==="REBA") return autoFillReba(text);
+    if(m==="RULA") return autoFillRula(text);
+    if(m==="OWAS") return autoFillOwas(text);
+    if(m==="NIOSH") return autoFillNiosh(text);
+    return 0;
+  };
+
   const analyzePhoto=async(url,m)=>{
     if(!m)return;
     setAiLoad(true);
@@ -193,7 +279,43 @@ function App() {
       const r=await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({imageBase64:b64,mediaType:"image/jpeg",method:m})});
       const d=await r.json();
-      setAiMsg(p=>({...p,[m]:d.result||d.error||"Sin respuesta."}));
+      const txt = d.result||d.error||"Sin respuesta.";
+      setAiMsg(p=>({...p,[m]:txt}));
+      const filled = autoFill(txt, m);
+      setAutoFilled(filled > 0);
+    }catch(e){setAiMsg(p=>({...p,[m]:"Error de conexión."}));}
+    setAiLoad(false);
+  };
+
+  // Analizar TODAS las fotos y consolidar
+  const analyzeAll = async (m) => {
+    if(!m || photos.length===0) return;
+    setAiLoad(true); setAiMsg(p=>({...p,[m]:""}));
+    try {
+      const results = [];
+      for(let i=0; i<photos.length; i++){
+        const comp = await compress(photos[i].url);
+        const b64 = comp.split(",")[1];
+        const r = await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({imageBase64:b64,mediaType:"image/jpeg",method:m})});
+        const d = await r.json();
+        results.push(`📸 ${photos[i].label}:\n${d.result||d.error}`);
+      }
+      // Segunda llamada para consolidar
+      const consolidateRes = await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          imageBase64: (await compress(photos[0].url)).split(",")[1],
+          mediaType:"image/jpeg",
+          method:m,
+          extraPrompt:`Tienes ${results.length} análisis de distintas vistas del mismo trabajador:\n\n${results.join("\n\n---\n\n")}\n\nConsolida en UN SOLO análisis ${m} definitivo con los valores más precisos considerando todas las vistas. Da la puntuación final consolidada.`
+        })});
+      const cd = await consolidateRes.json();
+      const finalText = results.length > 1
+        ? `✅ ANÁLISIS CONSOLIDADO (${photos.length} fotos)\n${"─".repeat(40)}\n${cd.result||cd.error}\n\n${"─".repeat(40)}\n📋 DETALLE POR FOTO:\n\n${results.join("\n\n")}`
+        : results[0];
+      setAiMsg(p=>({...p,[m]:finalText}));
+      autoFill(cd.result||"", m);
+      setAutoFilled(true);
     }catch(e){setAiMsg(p=>({...p,[m]:"Error de conexión."}));}
     setAiLoad(false);
   };
@@ -294,15 +416,27 @@ function App() {
         <Card title={`🤖 Análisis IA automático — ${method}`}>
           {photos.length>0?(
             <div>
-              <p style={{fontSize:12,color:C.muted,margin:"0 0 10px"}}>Haz clic en una foto para analizarla automáticamente — método: <strong style={{color:C.orange}}>{method}</strong></p>
+              {/* Botón principal: analizar todas */}
+              <button onClick={()=>{setAutoFilled(false);analyzeAll(method);}}
+                disabled={aiLoad}
+                style={{width:"100%",padding:"14px",marginBottom:14,
+                  background:aiLoad?C.muted:`linear-gradient(135deg,${C.header},${C.orange})`,
+                  color:"white",border:"none",borderRadius:12,cursor:aiLoad?"not-allowed":"pointer",
+                  fontWeight:800,fontSize:16,boxShadow:aiLoad?"none":"0 4px 15px rgba(139,69,19,0.4)",
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                <span style={{fontSize:20}}>✦</span>
+                {aiLoad?`Analizando ${photos.length} foto(s)...`:`Analizar todas las fotos con IA (${photos.length}) →`}
+              </button>
+              {/* Fotos individuales */}
+              <div style={{fontSize:11,color:C.muted,marginBottom:8}}>O haz clic en una foto individual:</div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
                 {photos.map((p,i)=>(
-                  <div key={i} onClick={()=>{setActiveP(i);analyzePhoto(p.url,method);}}
-                    style={{cursor:"pointer",position:"relative",borderRadius:10,overflow:"hidden",
+                  <div key={i} onClick={()=>{if(!aiLoad){setActiveP(i);setAutoFilled(false);analyzePhoto(p.url,method);}}}
+                    style={{cursor:aiLoad?"not-allowed":"pointer",position:"relative",borderRadius:10,overflow:"hidden",
                       border:`3px solid ${activeP===i?C.orange:C.cardBorder}`,
-                      boxShadow:activeP===i?`0 0 12px ${C.orange}66`:"none"}}>
-                    <img src={p.url} alt="" style={{width:90,height:90,objectFit:"cover",display:"block"}}/>
-                    <div style={{background:activeP===i?C.orange:"rgba(0,0,0,0.5)",color:"white",
+                      boxShadow:activeP===i?`0 0 12px ${C.orange}66`:"none",opacity:aiLoad?0.6:1}}>
+                    <img src={p.url} alt="" style={{width:80,height:80,objectFit:"cover",display:"block"}}/>
+                    <div style={{background:activeP===i?C.orange:"rgba(0,0,0,0.55)",color:"white",
                       fontSize:10,padding:"3px 0",textAlign:"center",fontWeight:700}}>{p.label}</div>
                   </div>
                 ))}
@@ -314,13 +448,20 @@ function App() {
             </div>
           )}
           {aiLoad&&(
-            <div style={{display:"flex",alignItems:"center",gap:10,marginTop:14,padding:"12px 16px",
+            <div style={{display:"flex",alignItems:"center",gap:10,marginTop:14,padding:"14px 16px",
               background:`${C.orange}11`,border:`1px solid ${C.orange}44`,borderRadius:10}}>
-              <span style={{fontSize:20}}>🔬</span>
+              <span style={{fontSize:22}}>🔬</span>
               <div>
-                <div style={{fontWeight:700,color:C.orange}}>Analizando foto con IA — {method}...</div>
-                <div style={{fontSize:11,color:C.muted}}>Procesando análisis biomecánico, espera unos segundos</div>
+                <div style={{fontWeight:700,color:C.orange,fontSize:14}}>Analizando con IA — {method}...</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2}}>Procesando análisis biomecánico · Los valores se auto-completarán al terminar</div>
               </div>
+            </div>
+          )}
+          {autoFilled&&!aiLoad&&(
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,padding:"10px 14px",
+              background:"#f0fdf4",border:"1.5px solid #22C55E",borderRadius:8}}>
+              <span style={{fontSize:18}}>✅</span>
+              <span style={{fontWeight:700,color:"#166534",fontSize:13}}>Valores auto-completados en el formulario — revisa y ajusta si es necesario</span>
             </div>
           )}
           {aiMsg[method]&&(
@@ -328,15 +469,12 @@ function App() {
               <div style={{background:`linear-gradient(135deg,${C.header},${C.orange})`,color:"white",
                 padding:"10px 16px",fontWeight:700,fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span>🩺 Análisis IA — {method}</span>
-                <button onClick={()=>setAiMsg(p=>({...p,[method]:""}))}
+                <button onClick={()=>{setAiMsg(p=>({...p,[method]:""}));setAutoFilled(false);}}
                   style={{background:"rgba(255,255,255,0.2)",border:"none",color:"white",cursor:"pointer",fontSize:14,borderRadius:6,padding:"2px 8px"}}>✕</button>
               </div>
               <div style={{padding:16,fontSize:12,whiteSpace:"pre-wrap",lineHeight:1.75,
-                fontFamily:"monospace",color:C.text,maxHeight:380,overflowY:"auto",background:"#FDFAF6"}}>
+                fontFamily:"monospace",color:C.text,maxHeight:400,overflowY:"auto",background:"#FDFAF6"}}>
                 {aiMsg[method]}
-              </div>
-              <div style={{background:"#FFF3E8",padding:"8px 16px",fontSize:11,color:C.muted,borderTop:`1px solid ${C.cardBorder}`}}>
-                ⚠ Confirma y ajusta cada valor en el formulario abajo.
               </div>
             </div>
           )}
