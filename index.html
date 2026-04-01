@@ -221,7 +221,9 @@ function calcMMC(s,sexo){
   const rm=NORMA.rm375[sx];
   const iso=NORMA.iso.find(x=>x.g===s.grupo)||(sx==="masculino"?NORMA.iso[0]:NORMA.iso[3]);
   const isoLim=s.frec==="ocasional"?iso.o:s.frec==="frecuente"?iso.f:iso.mf;
-  const limAp=Math.min(rm.general,isoLim);
+  // RM 375 es la norma base — define el límite aplicable
+  // ISO 11228 es referencia complementaria informativa
+  const limAp=rm.general;
   const exc=Math.max(s.peso-limAp,0);
   const pct=limAp>0?((s.peso/limAp-1)*100):0;
   let level=s.peso<=limAp?0:s.peso<=limAp*1.2?1:s.peso<=limAp*1.5?2:s.peso<=limAp*2?3:4;
@@ -472,26 +474,46 @@ function App(){
       setMmc(p=>({...p,grupo:"Varón adulto (18-45 años)"}));
   },[info.sexo]);
 
-  // Propaga factores al MMC cuando llega análisis REBA o RULA
-  useEffect(()=>{
-    const txt=(aiMsg.REBA||"")+" "+(aiMsg.RULA||"");
-    if(!txt.trim()||!info.metodos.includes("MMC")) return;
-    setMmc(p=>{
-      const f=[...(p.factores||[])];
-      const add=id=>{if(!f.includes(id))f.push(id);};
-      if(/torsi[oó]n.*tronco|giro.*tronco/i.test(txt)) add("asim");
-      if(/agarre.*malo|agarre.*deficiente|acoplamiento.*[23]/i.test(txt)) add("agr");
-      if(/encima.*hombro|bajo.*rodilla|nivel del suelo|desde el suelo/i.test(txt)) add("alt");
-      if(/espacio.*restringido/i.test(txt)) add("esp");
-      if(/carga.*inestable/i.test(txt)) add("ines");
-      if(/superficie.*inestable/i.test(txt)) add("sue");
-      if(/sin.*carretilla|sin.*ayuda.*mec/i.test(txt)) add("eq");
-      if(/frecuencia.*alta|>4.*min|repetitiv/i.test(txt)) add("freq");
-      const rm=NORMA.rm375[info.sexo==="femenino"?"femenino":"masculino"];
-      if(p.peso>rm.general) add("peso");
-      return f.length!==p.factores.length?{...p,factores:f}:p;
-    });
-  },[aiMsg.REBA,aiMsg.RULA]);
+  // MMC jala datos directamente del análisis REBA ya realizado
+  const propagarREBAaMMC = (rebaVals, rebaText) => {
+    const factores = [];
+    const add = id => { if(!factores.includes(id)) factores.push(id); };
+
+    // 1. Carga desde REBA → peso estimado en MMC
+    // REBA carga 2 = >10kg, pero el peso real lo ingresa el evaluador
+    // Solo marcamos el factor si supera el límite RM 375
+    const rm = NORMA.rm375[info.sexo==="femenino"?"femenino":"masculino"];
+
+    // 2. Torsión de tronco → factor asimetría MMC
+    if(rebaVals.trunkT === true) add("asim");
+    if(/torsión.*tronco.*sí|tronco.*torsión.*sí/i.test(rebaText)) add("asim");
+
+    // 3. Acoplamiento malo/inaceptable → agarre deficiente MMC
+    if(rebaVals.coup >= 2) add("agr");
+    if(/acoplamiento.*[23]/i.test(rebaText)) add("agr");
+
+    // 4. Actividad repetitiva → alta frecuencia MMC
+    if(rebaVals.act >= 2) add("freq");
+    if(/actividad.*[23]/i.test(rebaText)||/repetitiv|>4.*min/i.test(rebaText)) add("freq");
+
+    // 5. Posición piernas cuclillas/rodilla → altura desfavorable
+    if(rebaVals.legs >= 3) add("alt");
+    if(/piernas.*[34]/i.test(rebaText)||/cuclillas|rodilla.*tierra|arrodill/i.test(rebaText)) add("alt");
+
+    // 6. Carga >10kg en REBA → marcamos factor peso si supera RM 375
+    if(rebaVals.load === 2 && mmc.peso > rm.general) add("peso");
+
+    // 7. Desde texto libre de valoración clínica
+    if(/superficie.*inestable|desnivel|irregular/i.test(rebaText)) add("sue");
+    if(/sin.*carretilla|sin.*ayuda.*mec|sin.*equipo/i.test(rebaText)) add("eq");
+    if(/espacio.*restringido|espacio.*reducido/i.test(rebaText)) add("esp");
+    if(/carga.*inestable|irregular.*carga/i.test(rebaText)) add("ines");
+
+    if(factores.length > 0) {
+      setMmc(p => ({...p, factores: [...new Set([...p.factores, ...factores])]}));
+    }
+    return factores.length;
+  };
 
   const toggleM=m=>setInfo(p=>({...p,
     metodos:p.metodos.includes(m)?p.metodos.filter(x=>x!==m):[...p.metodos,m]
@@ -601,10 +623,17 @@ function App(){
 
   const confirmReview=()=>{
     if(!reviewData)return;
-    if(reviewData.method==="REBA")setReba(p=>({...p,...reviewData.vals}));
-    else if(reviewData.method==="RULA")setRula(p=>({...p,...reviewData.vals}));
-    else if(reviewData.method==="OWAS")setOwas(p=>({...p,...reviewData.vals}));
-    else if(reviewData.method==="NIOSH")setNiosh(p=>({...p,...reviewData.vals}));
+    const {method:m, vals} = reviewData;
+    if(m==="REBA"){
+      setReba(p=>({...p,...vals}));
+      // Propagar inmediatamente a MMC si está activo
+      if(info.metodos.includes("MMC")){
+        propagarREBAaMMC(vals, aiMsg.REBA||"");
+      }
+    }
+    else if(m==="RULA")setRula(p=>({...p,...vals}));
+    else if(m==="OWAS")setOwas(p=>({...p,...vals}));
+    else if(m==="NIOSH")setNiosh(p=>({...p,...vals}));
     setFilled(true);setReviewData(null);
   };
 
