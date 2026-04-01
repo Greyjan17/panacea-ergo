@@ -1263,78 +1263,96 @@ function App() {
     if (!m || !photos.length) return;
     setAiLoad(true); setFilled(false); setAiMsg(p => ({...p, [m]:""}));
     try {
-      const results = [];
+      const rawTexts = [];  // textos crudos por foto (para parseo)
+      const display  = [];  // textos formateados (para mostrar)
       for (let i=0; i<photos.length; i++) {
         setAiProgress(`Foto ${i+1} de ${photos.length}: ${photos[i].label}...`);
         try {
           const txt = await callWorker(photos[i].url, m);
-          results.push({label: photos[i].label, txt});
+          rawTexts.push(txt);
+          display.push(`📸 ${photos[i].label}:\n${txt}`);
         } catch(photoErr) {
-          results.push({label: photos[i].label, txt: `⚠ Error en esta foto: ${photoErr.message}`});
+          display.push(`📸 ${photos[i].label}:\n⚠ Error: ${photoErr.message}`);
         }
       }
-      const final = results.length === 1
-        ? results[0].txt
-        : `✅ ANÁLISIS CONSOLIDADO (${results.length} fotos)\n${"─".repeat(40)}\n${results.map(r => `📸 ${r.label}:\n${r.txt}`).join("\n\n─────\n\n")}`;
+      // Mostrar resultado consolidado de TODAS las fotos
+      const final = display.length === 1
+        ? display[0]
+        : `✅ ANÁLISIS CONSOLIDADO (${display.length} fotos)\n${"─".repeat(40)}\n${display.join("\n\n─────\n\n")}`;
       setAiMsg(p => ({...p, [m]:final}));
 
+      // Parsear CADA foto individualmente y mergear valores
+      // (cada foto se parsea por separado → sin regex sobre texto gigante)
       let mergedVals = {};
-      for (const r of results) {
-        if (!r.txt.startsWith("⚠")) {
-          const parsed = parseIA(r.txt, m);
+      let mergedHallazgos = "";
+      const mergedTareas = [];
+      const mergedMMCFactors = [];
+
+      for (const txt of rawTexts) {
+        // Extraer hallazgos clínicos por línea (seguro, sin regex catastrófico)
+        const lines = txt.split("\n");
+        const valIdx = lines.findIndex(l => /VALORACI[OÓ]N CL[IÍ]NICA/i.test(l));
+        if (valIdx >= 0) {
+          const h = lines[valIdx].replace(/.*VALORACI[OÓ]N CL[IÍ]NICA[:\s]*/i, "").trim();
+          if (h) mergedHallazgos = (mergedHallazgos ? mergedHallazgos + " " : "") + h;
+        }
+
+        // Detectar tareas
+        if (/transporte|desplazamiento|traslado/i.test(txt) && !mergedTareas.some(t=>t.includes("Transporte")))
+          mergedTareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
+        if (/flexión.*tronco|recoger.*suelo|levantar.*suelo/i.test(txt) && !mergedTareas.some(t=>t.includes("Flexión")))
+          mergedTareas.push("Tarea B: Flexión de tronco para recoger carga desde el nivel del suelo.");
+        if (/cuclillas|rodillas.*flexion|agarre.*suelo/i.test(txt) && !mergedTareas.some(t=>t.includes("cuclillas")))
+          mergedTareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
+
+        // Factores MMC por línea
+        if (m === "MMC") {
+          txt.split("\n").forEach(line => {
+            if (/Alta frecuencia/i.test(line)      && /sí|si/i.test(line)) mergedMMCFactors.push("freq");
+            if (/Torsión tronco/i.test(line)        && /sí|si/i.test(line)) mergedMMCFactors.push("asim");
+            if (/Agarre deficiente/i.test(line)     && /sí|si/i.test(line)) mergedMMCFactors.push("agr");
+            if (/Espacio restringido/i.test(line)   && /sí|si/i.test(line)) mergedMMCFactors.push("esp");
+            if (/Carga inestable/i.test(line)       && /sí|si/i.test(line)) mergedMMCFactors.push("ines");
+            if (/Superficie inestable/i.test(line)  && /sí|si/i.test(line)) mergedMMCFactors.push("sue");
+            if (/Sin ayudas/i.test(line)            && /sí|si/i.test(line)) mergedMMCFactors.push("eq");
+            if (/Distancia horizontal/i.test(line)  && /sí|si/i.test(line)) mergedMMCFactors.push("dist");
+            if (/Encima.*hombro|bajo.*rodilla/i.test(line) && /sí|si/i.test(line)) mergedMMCFactors.push("alt");
+          });
+        }
+
+        // Parsear valores posturales de cada foto y mergear
+        if (m !== "MMC") {
+          const parsed = parseIA(txt, m);
           if (parsed) mergedVals = {...mergedVals, ...parsed};
         }
       }
-      afterAnalysisMerged(mergedVals, m, results.map(r=>r.txt).join("\n"));
+
+      // Aplicar resultados consolidados
+      if (mergedHallazgos) setHallazgos(mergedHallazgos.substring(0, 800));
+      if (mergedTareas.length > 0) setTareasDesc(mergedTareas);
+
+      if (m === "MMC") {
+        const uniq = [...new Set(mergedMMCFactors)];
+        if (uniq.length > 0) setMmc(p => ({...p, factores:[...new Set([...p.factores,...uniq])]}));
+        setFilled(true);
+      } else if (Object.keys(mergedVals).length > 0) {
+        setReviewData({method:m, vals:mergedVals});
+      }
     } catch(e) {
       setAiMsg(p => ({...p, [m]:"⚠ Error general: " + (e.message||"intente de nuevo.")}));
     }
     setAiLoad(false); setAiProgress("");
   };
 
-  // Post-análisis consolidado (para analyzeAll)
-  const afterAnalysisMerged = (mergedVals, m, fullText) => {
-    // Extrae valoración clínica
-    const valM = fullText.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*(.+?)(?:\n\n|$)/si);
-    if (valM) setHallazgos(valM[1].trim());
-
-    // Detecta tareas
-    const tareas = [];
-    if (/transporte|desplazamiento|traslado/i.test(fullText))
-      tareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
-    if (/flexión.*tronco|recoger.*suelo|levantar.*suelo/i.test(fullText))
-      tareas.push("Tarea B: Flexión de tronco para recoger carga desde el nivel del suelo.");
-    if (/cuclillas|rodillas.*flexion|agarre.*suelo/i.test(fullText))
-      tareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
-    if (tareas.length > 0) setTareasDesc(tareas);
-
-    if (m === "MMC") {
-      const f = [];
-      fullText.split("\n").forEach(line => {
-        if (/Alta frecuencia/i.test(line)      && /sí|si/i.test(line)) f.push("freq");
-        if (/Torsión tronco/i.test(line)        && /sí|si/i.test(line)) f.push("asim");
-        if (/Agarre deficiente/i.test(line)     && /sí|si/i.test(line)) f.push("agr");
-        if (/Espacio restringido/i.test(line)   && /sí|si/i.test(line)) f.push("esp");
-        if (/Carga inestable/i.test(line)       && /sí|si/i.test(line)) f.push("ines");
-        if (/Superficie inestable/i.test(line)  && /sí|si/i.test(line)) f.push("sue");
-        if (/Sin ayudas/i.test(line)            && /sí|si/i.test(line)) f.push("eq");
-        if (/Distancia horizontal/i.test(line)  && /sí|si/i.test(line)) f.push("dist");
-        if (/Encima.*hombro|bajo.*rodilla/i.test(line) && /sí|si/i.test(line)) f.push("alt");
-      });
-      if (f.length > 0) setMmc(p => ({...p, factores:[...new Set([...p.factores,...f])]}));
-      setFilled(true);
-      return;
-    }
-
-    if (Object.keys(mergedVals).length > 0) {
-      setReviewData({method:m, vals:mergedVals});
-    }
-  };
-
-  // Post-análisis para foto individual (se mantiene compatible)
+  // Post-análisis: parsea texto de UNA foto y extrae valores
   const afterAnalysis = (txt, m) => {
-    const valM = txt.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*(.+?)(?:\n\n|$)/si);
-    if (valM) setHallazgos(valM[1].trim());
+    // Regex seguro: busca línea que empiece con VALORACIÓN CLÍNICA y toma el resto de esa línea
+    const lines = txt.split("\n");
+    const valLine = lines.findIndex(l => /VALORACI[OÓ]N CL[IÍ]NICA/i.test(l));
+    if (valLine >= 0) {
+      const valText = lines.slice(valLine).join(" ").replace(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*/i, "").trim();
+      if (valText) setHallazgos(valText.substring(0, 500)); // limitar longitud
+    }
 
     const tareas = [];
     if (/transporte|desplazamiento|traslado/i.test(txt))
