@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PANACEA ERGO — Evaluación Ergonómica Integral</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#F5EFE6;font-family:'Segoe UI',sans-serif;min-height:100vh}
+  input,select,textarea,button{font-family:inherit}
+  @media print{.no-print{display:none!important}body{background:white}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const WORKER_URL = "https://panacea-ergo-ai.wences18.workers.dev";
+
+const C = {
+  bg:"#F5EFE6",white:"#FFFFFF",header:"#8B4513",orange:"#D2691E",
+  orangeBtn:"#C45C1A",card:"#FFFFFF",cardBorder:"#E8D5C0",input:"#FDF8F3",
+  text:"#2C1810",textMid:"#5C3D2E",muted:"#9A7B6A",
+  r:["#22C55E","#84CC16","#EAB308","#F97316","#EF4444"]
+};
+const rLabel = ["Inapreciable","Bajo","Medio","Alto","Muy Alto"];
+const METHODS = ["REBA","RULA","OWAS","NIOSH","MMC"];
+const STEPS = ["Datos","Fotos","Evaluación","Resultados","Informe"];
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
+const Badge = ({level,text}) => (
+  <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",
+    background:C.r[level]+"22",border:`1.5px solid ${C.r[level]}`,borderRadius:8,marginTop:8}}>
+    <div style={{width:12,height:12,borderRadius:"50%",background:C.r[level],flexShrink:0}}/>
+    <span style={{fontWeight:700,color:C.r[level],fontSize:14}}>{text}</span>
+    <span style={{fontSize:12,color:C.muted}}>— Riesgo {rLabel[level]}</span>
+  </div>
+);
+
+const Card = ({title,children,ac}) => (
+  <div style={{background:C.white,borderRadius:14,padding:20,border:`1px solid ${ac||C.cardBorder}`,
+    marginBottom:16,boxShadow:"0 2px 8px rgba(139,69,19,0.08)"}}>
+    {title&&<div style={{fontWeight:700,fontSize:15,color:ac||C.orange,marginBottom:14,
+      paddingBottom:10,borderBottom:`1px solid ${C.cardBorder}`}}>{title}</div>}
+    {children}
+  </div>
+);
+
+const Sel = ({label,val,onChange,opts}) => (
+  <div style={{marginBottom:8}}>
+    <div style={{fontSize:11,color:C.muted,marginBottom:2,fontWeight:600}}>{label}</div>
+    <select value={val} onChange={e=>onChange(isNaN(+e.target.value)?e.target.value:+e.target.value)}
+      style={{width:"100%",padding:"7px 10px",border:`1px solid ${C.cardBorder}`,borderRadius:8,
+        background:C.input,fontSize:12,color:C.text}}>
+      {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+    </select>
+  </div>
+);
+
+const Num = ({label,val,onChange,min=0,max=200,step=1}) => (
+  <div style={{marginBottom:8}}>
+    <div style={{fontSize:11,color:C.muted,marginBottom:2,fontWeight:600}}>{label}</div>
+    <input type="number" value={val} min={min} max={max} step={step} onChange={e=>onChange(+e.target.value)}
+      style={{width:"100%",padding:"7px 10px",border:`1px solid ${C.cardBorder}`,borderRadius:8,
+        background:C.input,fontSize:13,color:C.text}}/>
+  </div>
+);
+
+const Chk = ({label,val,onChange}) => (
+  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:12,marginBottom:6,cursor:"pointer",color:C.textMid}}>
+    <input type="checkbox" checked={val} onChange={e=>onChange(e.target.checked)} style={{width:14,height:14,accentColor:C.orange}}/>
+    {label}
+  </label>
+);
+
+const OBtn = ({label,onClick,disabled=false,outline=false,small=false}) => (
+  <button onClick={onClick} disabled={disabled} style={{
+    background:disabled?C.muted:outline?"transparent":C.orange,
+    color:outline?C.orange:"white",
+    border:outline?`2px solid ${C.orange}`:"none",
+    padding:small?"7px 16px":"12px 24px",borderRadius:10,
+    cursor:disabled?"not-allowed":"pointer",fontWeight:700,
+    fontSize:small?13:15,
+    boxShadow:disabled||outline?"none":"0 3px 10px rgba(210,105,30,0.35)"}}>
+    {label}
+  </button>
+);
+
+const Sec = ({title}) => (
+  <div style={{fontWeight:700,fontSize:12,color:C.orange,margin:"12px 0 6px",
+    paddingBottom:4,borderBottom:`2px solid ${C.cardBorder}`,textTransform:"uppercase"}}>{title}</div>
+);
+
+const Nav = ({onBack,onNext,nextLabel,disabled}) => (
+  <div style={{display:"flex",justifyContent:"space-between",marginTop:20,paddingTop:14,borderTop:`1px solid ${C.cardBorder}`}}>
+    {onBack?<OBtn label="← Atrás" onClick={onBack} outline/>:<div/>}
+    {onNext&&<OBtn label={nextLabel||"Siguiente →"} onClick={onNext} disabled={disabled}/>}
+  </div>
+);
+
+const Header = () => (
+  <div style={{background:`linear-gradient(135deg,${C.header} 0%,${C.orange} 100%)`,
+    borderRadius:16,padding:"20px 24px",marginBottom:20,boxShadow:"0 4px 20px rgba(139,69,19,0.3)"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",fontWeight:600,letterSpacing:"1px",textTransform:"uppercase",marginBottom:4}}>PANACEA MEDICINA OCUPACIONAL</div>
+        <div style={{fontSize:24,fontWeight:800,color:"white",lineHeight:1.2,marginBottom:4}}>ERGO — Evaluación Ergonómica Integral</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.8)"}}>Dr. M. Ochoa Cuadros · CMP 102517 · RNE/RNA 13334</div>
+      </div>
+      <div style={{background:"rgba(255,255,255,0.15)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:"#4ade80"}}/>
+          <span style={{fontSize:12,color:"white",fontWeight:600}}>IA Activa</span>
+        </div>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.7)",marginTop:2}}>REBA·RULA·OWAS·NIOSH·MMC</div>
+      </div>
+    </div>
+  </div>
+);
+
+const Bar = ({step}) => (
+  <div style={{display:"flex",gap:4,marginBottom:20}}>
+    {STEPS.map((s,i)=>(
+      <div key={i} style={{flex:1,textAlign:"center",padding:"8px 4px",borderRadius:10,fontSize:12,
+        fontWeight:i===step?700:500,
+        background:i===step?C.orange:i<step?C.orange+"55":C.cardBorder,
+        color:i<=step?"white":C.muted}}>{i<step?"✓ ":""}{s}</div>
+    ))}
+  </div>
+);
+
+// ── Cálculos ────────────────────────────────────────────────────────────────
+const TA=[[1,2,3,4],[1,2,3,4],[3,3,5,6],[4,4,6,7],[4,4,6,7],[6,6,7,8]];
+const TB=[[1,2,2,3,4,5],[2,2,2,3,4,5],[3,3,3,4,5,6],[3,3,3,4,5,6],[4,4,4,5,6,7],[4,4,5,6,7,7],[5,5,6,7,8,8],[5,5,6,7,8,8]];
+const TC=[[1,1,1,2,3,3,4,5,6,7,7,7],[1,2,2,3,4,4,5,6,6,7,7,8],[2,3,3,3,4,5,6,7,7,8,8,8],[3,4,4,4,5,6,7,8,8,9,9,9],[4,4,4,5,6,7,8,8,9,9,9,9],[6,6,6,7,8,8,9,9,10,10,10,10],[7,7,7,8,9,9,9,10,10,11,11,11],[8,8,8,9,10,10,10,10,10,11,11,11],[9,9,9,10,10,10,11,11,11,12,12,12],[10,10,10,11,11,11,11,12,12,12,12,12],[11,11,11,11,12,12,12,12,12,12,12,12],[12,12,12,12,12,12,12,12,12,12,12,12]];
+function calcReba(s){const neck=s.neck+(s.neckT?1:0)+(s.neckS?1:0);const trunk=s.trunk+(s.trunkT?1:0)+(s.trunkS?1:0);const rA=Math.min(Math.max((trunk-1)*2+(neck-1>2?2:neck-1),0),5);const cA=Math.min(s.legs-1,3);const sA=Math.min((TA[rA]?.[cA]??6)+s.load+(s.shock?1:0),12);const ua=Math.max(s.ua+(s.shr?1:0)+(s.abd?1:0)-(s.sup?1:0),1);const rB=Math.min((ua-1)*2+Math.min(s.la-1,1),7);const cB=Math.min((s.wrist-1)*2+(s.wristT?1:0),5);const sB=Math.min((TB[rB]?.[cB]??6)+s.coup,12);const sC=TC[Math.min(sA-1,11)]?.[Math.min(sB-1,11)]??12;const fin=Math.min(sC+s.act,12);return{sA,sB,sC,fin,level:fin<=1?0:fin<=3?1:fin<=7?2:fin<=10?3:4};}
+const owasT={"1111":1,"1112":1,"1113":1,"1114":2,"1121":1,"1122":1,"1123":2,"1124":2,"1131":1,"1132":2,"1133":2,"1134":3,"1141":2,"1142":2,"1143":3,"1144":3,"1151":2,"1152":3,"1153":3,"1154":3,"1161":1,"1162":2,"1163":2,"1164":3,"1211":1,"1212":1,"1213":2,"1214":2,"1221":2,"1222":2,"1223":2,"1224":3,"1231":2,"1232":2,"1233":3,"1234":3,"1241":2,"1242":3,"1243":3,"1244":4,"1251":3,"1252":3,"1253":4,"1254":4,"1261":2,"1262":2,"1263":3,"1264":3,"2111":2,"2112":2,"2113":2,"2114":3,"2121":2,"2122":2,"2123":3,"2124":3,"2131":2,"2132":3,"2133":3,"2134":4,"2141":3,"2142":3,"2143":3,"2144":4,"2151":3,"2152":3,"2153":4,"2154":4,"2161":2,"2162":3,"2163":3,"2164":4,"2211":2,"2212":2,"2213":3,"2214":3,"2221":2,"2222":3,"2223":3,"2224":4,"2231":3,"2232":3,"2233":4,"2234":4,"2241":3,"2242":4,"2243":4,"2244":4,"2251":4,"2252":4,"2253":4,"2254":4,"2261":3,"2262":3,"2263":4,"2264":4,"3111":1,"3112":2,"3113":2,"3114":2,"3121":2,"3122":2,"3123":3,"3124":3,"3131":2,"3132":3,"3133":3,"3134":3,"3141":3,"3142":3,"3143":4,"3144":4,"3151":3,"3152":4,"3153":4,"3154":4,"3161":2,"3162":2,"3163":3,"3164":3,"3211":2,"3212":2,"3213":3,"3214":3,"3221":3,"3222":3,"3223":3,"3224":4,"3231":3,"3232":3,"3233":4,"3234":4,"3241":4,"3242":4,"3243":4,"3244":4,"3251":4,"3252":4,"3253":4,"3254":4,"3261":3,"3262":3,"3263":4,"3264":4,"4111":2,"4112":3,"4113":3,"4114":4,"4121":3,"4122":3,"4123":4,"4124":4,"4131":3,"4132":4,"4133":4,"4134":4,"4141":4,"4142":4,"4143":4,"4144":4,"4151":4,"4152":4,"4153":4,"4154":4,"4161":3,"4162":4,"4163":4,"4164":4,"4211":3,"4212":3,"4213":4,"4214":4,"4221":3,"4222":4,"4223":4,"4224":4,"4231":4,"4232":4,"4233":4,"4234":4,"4241":4,"4242":4,"4243":4,"4244":4,"4251":4,"4252":4,"4253":4,"4254":4,"4261":4,"4262":4,"4263":4,"4264":4};
+const owasAct=["Sin acción","Acción en futuro próximo","Acción cuanto antes","Acción INMEDIATA"];
+function calcNiosh(s){const HM=s.H<=25?1:Math.min(25/s.H,1);const VM=Math.max(1-(0.003*Math.abs(s.V-75)),0);const DM=s.D<25?0.87:Math.min(0.82+(4.5/s.D),1);const AM=Math.max(1-(0.0032*s.A),0);const fV={"<1h":[0.85,0.81,0.75,0.65,0.55,0.45,0,0,0,0,0,0,0],"1-2h":[0.95,0.92,0.88,0.84,0.79,0.72,0.6,0.5,0.42,0.35,0.3,0.26,0.23],"2-8h":[1,0.97,0.94,0.91,0.88,0.84,0.8,0.75,0.7,0.6,0.52,0.45,0]};const fi=s.F<=0.2?0:s.F<=0.5?1:s.F<=1?2:s.F<=2?3:s.F<=3?4:s.F<=4?5:s.F<=5?6:s.F<=6?7:s.F<=7?8:s.F<=8?9:s.F<=9?10:s.F<=10?11:12;const FM=fV[s.dur]?.[fi]??0.45;const CM=s.coup==="good"?1:s.coup==="fair"?0.95:0.90;const RWL=23*HM*VM*DM*AM*FM*CM;const LI=s.L/Math.max(RWL,0.1);return{HM,VM,DM,AM,FM,CM,RWL:RWL.toFixed(2),LI:LI.toFixed(2),level:LI<=1?0:LI<=2?1:LI<=3?2:LI<=5?3:4};}
+function calcRula(s){const tA=[[[[1,2],[2,2],[2,3],[3,3]],[[2,2],[2,2],[3,3],[3,3]],[[2,3],[3,3],[3,3],[4,4]]],[[[2,3],[3,3],[3,4],[4,4]],[[3,3],[3,3],[3,4],[4,4]],[[3,4],[4,4],[4,4],[5,5]]],[[[3,3],[4,4],[4,4],[5,5]],[[3,4],[4,4],[4,5],[5,5]],[[4,4],[4,4],[4,5],[5,6]]],[[[4,4],[4,4],[4,5],[5,5]],[[4,4],[4,4],[4,5],[5,5]],[[4,5],[5,5],[5,6],[6,7]]],[[[5,5],[5,5],[5,6],[6,7]],[[5,6],[6,6],[6,7],[7,7]],[[6,6],[6,7],[7,7],[7,8]]],[[[7,8],[7,8],[7,8],[8,9]],[[8,9],[8,9],[8,9],[9,9]],[[9,9],[9,9],[9,9],[9,9]]]];const ua=Math.max(Math.min(s.ua+(s.shr?1:0)-(s.sup?1:0),6),1);const la=Math.min(s.la+(s.mid?1:0),2);const w=Math.min(s.wrist,3);const wt=s.wristT?2:1;const sA=(tA[ua-1]?.[la-1]?.[w-1]?.[wt-1]??9)+s.mA+s.fA;const tB=[[1,3,2,3,3,4,5,5,6,6,7,7],[2,3,2,3,4,5,5,6,6,7,7,7],[3,4,3,4,4,5,6,6,7,7,7,7],[5,5,4,5,5,6,7,7,7,7,8,8],[7,7,5,6,6,7,7,8,8,8,8,8],[8,8,7,7,7,8,8,9,9,9,9,9]];const n=Math.min(s.neck+(s.neckT?1:0)+(s.neckS?1:0),6);const t=Math.min(s.trunk+(s.trunkT?1:0)+(s.trunkS?1:0),6);const lg=Math.min(s.legs,2);const sB=(tB[n-1]?.[t+(lg-1)*6-1]??9)+s.mB+s.fB;const tC=[[1,2,3,3,4,5,5],[2,2,3,4,4,5,5],[3,3,3,4,4,5,6],[3,3,3,4,5,6,6],[4,4,4,5,6,7,7],[4,4,5,6,6,7,7],[5,5,6,6,7,7,7],[5,5,6,7,7,7,7]];const fin=tC[Math.min(sA-1,7)]?.[Math.min(sB-1,6)]??7;return{sA,sB,fin,level:fin<=2?0:fin<=3?1:fin<=4?2:fin<=6?3:4};}
+const LRM=[{g:"Varón adulto (18-45 años)",o:25,f:15,m:10},{g:"Varón joven (16-18 años)",o:20,f:13,m:8},{g:"Varón mayor (>45 años)",o:20,f:13,m:8},{g:"Mujer adulta (18-45 años)",o:15,f:9,m:6},{g:"Mujer joven (16-18 años)",o:13,f:8,m:5},{g:"Mujer mayor (>45 años)",o:13,f:8,m:5}];
+const FMMC=[{id:"peso",l:"Peso excede límite RM 375"},{id:"freq",l:"Alta frecuencia >4/min"},{id:"dist",l:"Distancia horizontal >50cm"},{id:"alt",l:"Encima hombros o bajo rodillas"},{id:"asim",l:"Torsión tronco al levantar"},{id:"agr",l:"Agarre deficiente"},{id:"esp",l:"Espacio restringido"},{id:"ines",l:"Carga inestable"},{id:"sue",l:"Superficie inestable"},{id:"eq",l:"Sin ayudas mecánicas"}];
+function calcMMC(s){const lim=LRM.find(l=>l.g===s.grupo)||LRM[0];const la=s.frec==="ocasional"?lim.o:s.frec==="frecuente"?lim.f:lim.m;const exc=Math.max(s.peso-la,0);const pct=la>0?((s.peso/la-1)*100):0;const nF=s.factores.length;let level=s.peso<=la?0:s.peso<=la*1.2?1:s.peso<=la*1.5?2:s.peso<=la*2?3:4;if(nF>=3&&level<2)level=2;if(nF>=5&&level<3)level=3;return{limite:la,exceso:exc.toFixed(1),pct:pct.toFixed(0),nF,level};}
+
+// ── Paneles ──────────────────────────────────────────────────────────────────
+function REBAPanel({s,set}){const r=calcReba(s);const u=(k,v)=>set(p=>({...p,[k]:v}));return(<Card title="REBA — Rapid Entire Body Assessment"><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><div><Sec title="Cuello"/><Sel label="Posición" val={s.neck} onChange={v=>u("neck",v)} opts={[[1,"1·0-20°"],[2,"2·>20° o ext"]]}/><Chk label="Torsión" val={s.neckT} onChange={v=>u("neckT",v)}/><Chk label="Inclinación lateral" val={s.neckS} onChange={v=>u("neckS",v)}/><Sec title="Tronco"/><Sel label="Posición" val={s.trunk} onChange={v=>u("trunk",v)} opts={[[1,"1·Erecto"],[2,"2·0-20°"],[3,"3·20-60°"],[4,"4·>60°"]]}/><Chk label="Torsión" val={s.trunkT} onChange={v=>u("trunkT",v)}/><Chk label="Inclinación" val={s.trunkS} onChange={v=>u("trunkS",v)}/><Sec title="Piernas"/><Sel label="Posición" val={s.legs} onChange={v=>u("legs",v)} opts={[[1,"1·Bil."],[2,"2·Unilateral"],[3,"3·Flex 30-60°"],[4,"4·Flex >60°"]]}/><Sec title="Carga"/><Sel label="Carga" val={s.load} onChange={v=>u("load",v)} opts={[[0,"0·<5kg"],[1,"1·5-10kg"],[2,"2·>10kg"]]}/><Chk label="+1 Fuerza brusca" val={s.shock} onChange={v=>u("shock",v)}/></div><div><Sec title="Brazo Superior"/><Sel label="Posición" val={s.ua} onChange={v=>u("ua",v)} opts={[[1,"1·-20/20°"],[2,"2·20-45°"],[3,"3·45-90°"],[4,"4·>90°"]]}/><Chk label="Hombro elevado" val={s.shr} onChange={v=>u("shr",v)}/><Chk label="Abducido" val={s.abd} onChange={v=>u("abd",v)}/><Chk label="Apoyado (resta 1)" val={s.sup} onChange={v=>u("sup",v)}/><Sec title="Brazo Inferior"/><Sel label="Posición" val={s.la} onChange={v=>u("la",v)} opts={[[1,"1·60-100°"],[2,"2·Fuera rango"]]}/><Sec title="Muñeca"/><Sel label="Posición" val={s.wrist} onChange={v=>u("wrist",v)} opts={[[1,"1·0-15°"],[2,"2·>15°"]]}/><Chk label="Torsión" val={s.wristT} onChange={v=>u("wristT",v)}/><Sec title="Modificadores"/><Sel label="Acoplamiento" val={s.coup} onChange={v=>u("coup",v)} opts={[[0,"0·Bueno"],[1,"1·Regular"],[2,"2·Malo"],[3,"3·Inaceptable"]]}/><Sel label="Actividad" val={s.act} onChange={v=>u("act",v)} opts={[[0,"0·Normal"],[1,"1·Estático"],[2,"2·Repetitivo"],[3,"3·Cambios rápidos"]]}/></div></div><Badge level={r.level} text={`Score ${r.fin}/15`}/><div style={{fontSize:12,color:C.muted,marginTop:4}}>A:{r.sA} · B:{r.sB} · C:{r.sC}</div></Card>);}
+function RULAPanel({s,set}){const r=calcRula(s);const u=(k,v)=>set(p=>({...p,[k]:v}));return(<Card title="RULA — Rapid Upper Limb Assessment"><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><div><Sec title="Grupo A"/><Sel label="Brazo superior" val={s.ua} onChange={v=>u("ua",v)} opts={[[1,"1·-20/20°"],[2,"2·20-45°"],[3,"3·45-90°"],[4,"4·>90°"]]}/><Chk label="Hombro elevado" val={s.shr} onChange={v=>u("shr",v)}/><Chk label="Apoyado" val={s.sup} onChange={v=>u("sup",v)}/><Sel label="Brazo inferior" val={s.la} onChange={v=>u("la",v)} opts={[[1,"1·60-100°"],[2,"2·Fuera rango"]]}/><Chk label="Línea media" val={s.mid} onChange={v=>u("mid",v)}/><Sel label="Muñeca" val={s.wrist} onChange={v=>u("wrist",v)} opts={[[1,"1·Neutra"],[2,"2·0-15°"],[3,"3·>15°"]]}/><Chk label="Torsión" val={s.wristT} onChange={v=>u("wristT",v)}/><Sel label="Músculo A" val={s.mA} onChange={v=>u("mA",v)} opts={[[0,"0·Normal"],[1,"1·Estático"]]}/><Sel label="Fuerza A" val={s.fA} onChange={v=>u("fA",v)} opts={[[0,"0·<2kg"],[1,"1·2-10kg"],[2,"2·>10kg"],[3,"3·Brusco"]]}/></div><div><Sec title="Grupo B"/><Sel label="Cuello" val={s.neck} onChange={v=>u("neck",v)} opts={[[1,"1·0-10°"],[2,"2·10-20°"],[3,"3·>20°"],[4,"4·Ext"]]}/><Chk label="Torsión" val={s.neckT} onChange={v=>u("neckT",v)}/><Chk label="Inclinación" val={s.neckS} onChange={v=>u("neckS",v)}/><Sel label="Tronco" val={s.trunk} onChange={v=>u("trunk",v)} opts={[[1,"1·Erecto"],[2,"2·0-20°"],[3,"3·20-60°"],[4,"4·>60°"]]}/><Chk label="Torsión" val={s.trunkT} onChange={v=>u("trunkT",v)}/><Chk label="Inclinación" val={s.trunkS} onChange={v=>u("trunkS",v)}/><Sel label="Piernas" val={s.legs} onChange={v=>u("legs",v)} opts={[[1,"1·Bilateral"],[2,"2·Unilateral"]]}/><Sel label="Músculo B" val={s.mB} onChange={v=>u("mB",v)} opts={[[0,"0·Normal"],[1,"1·Estático"]]}/><Sel label="Fuerza B" val={s.fB} onChange={v=>u("fB",v)} opts={[[0,"0·<2kg"],[1,"1·2-10kg"],[2,"2·>10kg"],[3,"3·Brusco"]]}/></div></div><Badge level={r.level} text={`Score ${r.fin}`}/><div style={{fontSize:12,color:C.muted,marginTop:4}}>A:{r.sA} · B:{r.sB}</div></Card>);}
+function OWASPanel({s,set}){const code=`${s.back}${s.arms}${s.legs}${s.load}`;const cat=owasT[code]??2;const level=cat-1;return(<Card title="OWAS — Ovako Working Posture Analysis"><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><div><Sel label="Espalda" val={s.back} onChange={v=>set(p=>({...p,back:v}))} opts={[[1,"1·Recta"],[2,"2·Doblada"],[3,"3·Girada"],[4,"4·Doblada+girada"]]}/><Sel label="Brazos" val={s.arms} onChange={v=>set(p=>({...p,arms:v}))} opts={[[1,"1·Bajo hombros"],[2,"2·Uno sobre"],[3,"3·Ambos sobre"]]}/></div><div><Sel label="Piernas" val={s.legs} onChange={v=>set(p=>({...p,legs:v}))} opts={[[1,"1·Sentado"],[2,"2·De pie"],[3,"3·Peso en una"],[4,"4·Flexionadas"],[5,"5·Una rodilla"],[6,"6·Arrodillado"],[7,"7·Caminando"]]}/><Sel label="Carga" val={s.load} onChange={v=>set(p=>({...p,load:v}))} opts={[[1,"1·<10kg"],[2,"2·10-20kg"],[3,"3·>20kg"]]}/></div></div><Badge level={level} text={`Cat.${cat}·${code}`}/><div style={{fontSize:12,color:C.muted,marginTop:4}}>{owasAct[cat-1]}</div></Card>);}
+function NIOSHPanel({s,set}){const r=calcNiosh(s);const u=(k,v)=>set(p=>({...p,[k]:v}));return(<Card title="NIOSH — Ecuación de Levantamiento"><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><div><Num label="Peso L [kg]" val={s.L} onChange={v=>u("L",v)} min={1} max={100}/><Num label="Distancia H [cm]" val={s.H} onChange={v=>u("H",v)} min={10} max={100}/><Num label="Altura V [cm]" val={s.V} onChange={v=>u("V",v)} min={0} max={175}/><Num label="Desplazamiento D [cm]" val={s.D} onChange={v=>u("D",v)} min={10} max={175}/></div><div><Num label="Ángulo A [°]" val={s.A} onChange={v=>u("A",v)} min={0} max={135}/><Num label="Frecuencia F [/min]" val={s.F} onChange={v=>u("F",v)} min={0.1} max={15} step={0.1}/><Sel label="Duración" val={s.dur} onChange={v=>u("dur",v)} opts={[["<1h","<1h"],["1-2h","1-2h"],["2-8h","2-8h"]]}/><Sel label="Acoplamiento" val={s.coup} onChange={v=>u("coup",v)} opts={[["good","Bueno"],["fair","Regular"],["poor","Pobre"]]}/></div></div><div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,background:C.bg,borderRadius:8,padding:10,marginTop:8}}>{[["HM",r.HM],["VM",r.VM],["DM",r.DM],["AM",r.AM],["FM",r.FM],["CM",r.CM]].map(([k,v])=><div key={k} style={{textAlign:"center",fontSize:11}}><strong>{k}</strong><br/>{(+v).toFixed(3)}</div>)}</div><Badge level={r.level} text={`LI=${r.LI}`}/><div style={{fontSize:12,color:C.muted,marginTop:4}}>RWL={r.RWL}kg</div></Card>);}
+function MMCPanel({s,set}){const r=calcMMC(s);const u=(k,v)=>set(p=>({...p,[k]:v}));const tF=id=>set(p=>({...p,factores:p.factores.includes(id)?p.factores.filter(x=>x!==id):[...p.factores,id]}));return(<Card title="⚖️ MMC — Manejo Manual de Cargas" ac={C.orange}><div style={{background:"#FFF3E8",border:`1px solid ${C.orange}44`,borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12}}><strong style={{color:C.orange}}>Normativa:</strong> RM N° 375-2008-TR · ISO 11228-1</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><div><Num label="Peso real [kg]" val={s.peso} onChange={v=>u("peso",v)} min={1} max={200}/><Sel label="Grupo trabajador" val={s.grupo} onChange={v=>u("grupo",v)} opts={LRM.map(l=>[l.g,l.g])}/><Sel label="Frecuencia" val={s.frec} onChange={v=>u("frec",v)} opts={[["ocasional","Ocasional"],["frecuente","Frecuente"],["muyFrecuente","Muy frecuente"]]}/><Sel label="Capacitación MMC" val={s.form} onChange={v=>u("form",v)} opts={[["si","Sí"],["no","No"]]}/></div><div><div style={{fontSize:11,fontWeight:700,color:C.orange,marginBottom:6,textTransform:"uppercase"}}>Factores de riesgo:</div>{FMMC.map(f=><Chk key={f.id} label={f.l} val={s.factores.includes(f.id)} onChange={()=>tF(f.id)}/>)}</div></div><div style={{marginTop:12,padding:14,background:C.r[r.level]+"15",border:`2px solid ${C.r[r.level]}`,borderRadius:10}}><div style={{fontWeight:800,fontSize:15,color:C.r[r.level]}}>{s.peso}kg — Límite:{r.limite}kg {+r.exceso>0?`EXCEDE ${r.exceso}kg (${r.pct}%)`:"DENTRO DEL LÍMITE"}</div><div style={{fontSize:13,marginTop:4}}>Riesgo: <strong style={{color:C.r[r.level]}}>{rLabel[r.level].toUpperCase()}</strong> · {r.nF} factor(es)</div>{s.form==="no"&&<div style={{marginTop:6,fontSize:12,color:C.orange,fontWeight:600}}>⚠ Sin capacitación — agravante RM 375 Art.6</div>}</div></Card>);}
+
+const recsDB={REBA:[["Sin cambios."],["Revisar. Pausas activas."],["Modificar a corto plazo. Rediseñar puesto."],["Cambios INMEDIATOS. Rotación. Evaluación médica."],["URGENTE. Paralizar hasta rediseño."]],RULA:[["Postura aceptable."],["Investigar cambios."],["Cambios a corto plazo."],["Cambios urgentes."],["Cambios inmediatos."]],OWAS:[["Sin medidas."],["Medidas en futuro próximo."],["Medidas lo antes posible."],["Medidas INMEDIATAS."]],NIOSH:[["Tarea segura."],["Mejorar técnica. Capacitación."],["Reducir carga/frecuencia."],["Intervención urgente."],["PROHIBIR tarea manual."]],MMC:[["Dentro del límite. Mantener buenas prácticas."],["Cerca del límite. Capacitación obligatoria."],["Supera límite. Ayudas mecánicas. Examen lumbar."],["CRÍTICO. Prohibir levantamiento manual."],["RIESGO INMINENTE. Paralizar. Notificar SUNAFIL."]]};
+
+// ── APP PRINCIPAL ────────────────────────────────────────────────────────────
+function App() {
+  const {useState,useRef} = React;
+  const [step,setStep]=useState(0);
+  const [info,setInfo]=useState({empresa:"",trabajador:"",dni:"",cargo:"",puesto:"",area:"",tarea:"",fecha:new Date().toISOString().split("T")[0],evaluador:"Dr. Miguel Ochoa Cuadros",metodos:[]});
+  const [photos,setPhotos]=useState([]);
+  const [method,setMethod]=useState(null);
+  const [reba,setReba]=useState({neck:1,neckT:false,neckS:false,trunk:1,trunkT:false,trunkS:false,legs:1,load:0,shock:false,ua:1,shr:false,abd:false,sup:false,la:1,wrist:1,wristT:false,coup:0,act:0});
+  const [rula,setRula]=useState({ua:1,shr:false,sup:false,la:1,mid:false,wrist:1,wristT:false,mA:0,fA:0,neck:1,neckT:false,neckS:false,trunk:1,trunkT:false,trunkS:false,legs:1,mB:0,fB:0});
+  const [owas,setOwas]=useState({back:1,arms:1,legs:1,load:1});
+  const [niosh,setNiosh]=useState({L:22,H:40,V:30,D:50,A:15,F:2,dur:"2-8h",coup:"poor"});
+  const [mmc,setMmc]=useState({peso:22,grupo:"Varón adulto (18-45 años)",frec:"frecuente",form:"no",factores:[]});
+  const [aiMsg,setAiMsg]=useState({});
+  const [aiLoad,setAiLoad]=useState(false);
+  const [activeP,setActiveP]=useState(null);
+  const fileRef=useRef();
+
+  const toggleM=m=>setInfo(p=>({...p,metodos:p.metodos.includes(m)?p.metodos.filter(x=>x!==m):[...p.metodos,m]}));
+
+  const compress=url=>new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=800;let{width:w,height:h}=img;
+      if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+      const c=document.createElement("canvas");c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      res(c.toDataURL("image/jpeg",0.75));
+    };img.src=url;
+  });
+
+  const analyzePhoto=async(url,m)=>{
+    if(!m)return;
+    setAiLoad(true);
+    try{
+      const comp=await compress(url);
+      const b64=comp.split(",")[1];
+      const r=await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({imageBase64:b64,mediaType:"image/jpeg",method:m})});
+      const d=await r.json();
+      setAiMsg(p=>({...p,[m]:d.result||d.error||"Sin respuesta."}));
+    }catch(e){setAiMsg(p=>({...p,[m]:"Error de conexión."}));}
+    setAiLoad(false);
+  };
+
+  const getRes=()=>{
+    const r={};
+    if(info.metodos.includes("REBA"))r.REBA=calcReba(reba);
+    if(info.metodos.includes("RULA"))r.RULA=calcRula(rula);
+    if(info.metodos.includes("OWAS")){const code=`${owas.back}${owas.arms}${owas.legs}${owas.load}`;const cat=owasT[code]??2;r.OWAS={code,cat,level:cat-1,action:owasAct[cat-1]};}
+    if(info.metodos.includes("NIOSH"))r.NIOSH=calcNiosh(niosh);
+    if(info.metodos.includes("MMC"))r.MMC=calcMMC(mmc);
+    return r;
+  };
+
+  const wrap=ch=>(
+    <div style={{minHeight:"100vh",background:C.bg,padding:20,maxWidth:900,margin:"0 auto"}}>
+      <Header/><Bar step={step}/>{ch}
+    </div>
+  );
+
+  const inpStyle={width:"100%",padding:"9px 12px",border:`1px solid ${C.cardBorder}`,borderRadius:8,background:C.input,fontSize:13,color:C.text,boxSizing:"border-box"};
+
+  // STEP 0
+  if(step===0)return wrap(
+    <Card title="📋 Datos del Puesto de Trabajo">
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {[["empresa","Empresa / Cliente"],["trabajador","Trabajador"],["dni","DNI"],["cargo","Cargo"],["puesto","Puesto de Trabajo"],["area","Área / Sección"],["tarea","Tarea Evaluada"],["evaluador","Evaluador"]].map(([k,l])=>(
+          <div key={k}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:3,fontWeight:600}}>{l}</div>
+            <input value={info[k]} onChange={e=>setInfo(p=>({...p,[k]:e.target.value}))} style={inpStyle}/>
+          </div>
+        ))}
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:3,fontWeight:600}}>Fecha</div>
+          <input type="date" value={info.fecha} onChange={e=>setInfo(p=>({...p,fecha:e.target.value}))} style={inpStyle}/>
+        </div>
+      </div>
+      <div style={{marginTop:14}}>
+        <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,textTransform:"uppercase"}}>Métodos a aplicar:</div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {METHODS.map(m=>{const a=info.metodos.includes(m);return(
+            <button key={m} onClick={()=>toggleM(m)} style={{padding:"8px 20px",border:`2px solid ${a?C.orange:C.cardBorder}`,borderRadius:24,
+              background:a?`linear-gradient(135deg,${C.orange},${C.orangeBtn})`:"white",
+              fontWeight:700,fontSize:14,cursor:"pointer",color:a?"white":C.textMid,
+              boxShadow:a?"0 3px 10px rgba(210,105,30,0.3)":"none"}}>
+              {m}{m==="MMC"&&" ⚖️"}
+            </button>
+          );})}
+        </div>
+      </div>
+      <Nav onNext={()=>setStep(1)} nextLabel="Siguiente: Fotos →" disabled={!info.empresa||!info.metodos.length}/>
+    </Card>
+  );
+
+  // STEP 1
+  if(step===1)return wrap(
+    <Card title="📸 Fotografías del Puesto de Trabajo">
+      <p style={{color:C.muted,fontSize:13,marginBottom:14}}>Sube fotos del trabajador — la IA las analizará automáticamente al hacer clic.</p>
+      <div onClick={()=>fileRef.current.click()} style={{border:`2px dashed ${C.orange}88`,borderRadius:12,
+        padding:"32px 20px",textAlign:"center",cursor:"pointer",background:"#FFF8F2",marginBottom:14}}>
+        <div style={{fontSize:36,marginBottom:8}}>📷</div>
+        <div style={{fontWeight:700,color:C.orange,fontSize:15}}>Subir fotos del trabajador</div>
+        <div style={{fontSize:12,color:C.muted,marginTop:4}}>Lateral · Anterior · Posterior · JPG, PNG</div>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" multiple style={{display:"none"}}
+        onChange={e=>Array.from(e.target.files).forEach((f,i)=>{const r=new FileReader();r.onload=ev=>setPhotos(p=>[...p,{url:ev.target.result,name:f.name,label:["Lateral","Anterior","Posterior","Adicional "+(i+1)][Math.min(i,3)]}]);r.readAsDataURL(f);})}/>
+      {photos.length>0&&(
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {photos.map((p,i)=>(
+            <div key={i} style={{position:"relative",borderRadius:10,overflow:"hidden",border:`3px solid ${C.orange}`}}>
+              <img src={p.url} alt="" style={{width:130,height:130,objectFit:"cover",display:"block"}}/>
+              <div style={{background:"rgba(139,69,19,0.85)",padding:"4px 8px",fontSize:11,color:"white",fontWeight:700,textAlign:"center"}}>{p.label}</div>
+              <button onClick={()=>setPhotos(ph=>ph.filter((_,j)=>j!==i))}
+                style={{position:"absolute",top:6,right:6,width:24,height:24,borderRadius:"50%",
+                  background:"#EF4444",border:"none",color:"white",fontWeight:700,cursor:"pointer",fontSize:13}}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <Nav onBack={()=>setStep(0)} onNext={()=>setStep(2)} nextLabel="Siguiente: Evaluación →"/>
+    </Card>
+  );
+
+  // STEP 2
+  if(step===2)return wrap(
+    <div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+        {info.metodos.map(m=>(
+          <button key={m} onClick={()=>setMethod(m)} style={{padding:"10px 22px",
+            border:`2px solid ${method===m?C.orange:C.cardBorder}`,borderRadius:24,fontWeight:700,fontSize:14,cursor:"pointer",
+            background:method===m?`linear-gradient(135deg,${C.orange},${C.orangeBtn})`:"white",
+            color:method===m?"white":C.textMid,boxShadow:method===m?"0 3px 12px rgba(210,105,30,0.35)":"none"}}>
+            {m}
+          </button>
+        ))}
+      </div>
+      {method&&(
+        <Card title={`🤖 Análisis IA automático — ${method}`}>
+          {photos.length>0?(
+            <div>
+              <p style={{fontSize:12,color:C.muted,margin:"0 0 10px"}}>Haz clic en una foto para analizarla automáticamente — método: <strong style={{color:C.orange}}>{method}</strong></p>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                {photos.map((p,i)=>(
+                  <div key={i} onClick={()=>{setActiveP(i);analyzePhoto(p.url,method);}}
+                    style={{cursor:"pointer",position:"relative",borderRadius:10,overflow:"hidden",
+                      border:`3px solid ${activeP===i?C.orange:C.cardBorder}`,
+                      boxShadow:activeP===i?`0 0 12px ${C.orange}66`:"none"}}>
+                    <img src={p.url} alt="" style={{width:90,height:90,objectFit:"cover",display:"block"}}/>
+                    <div style={{background:activeP===i?C.orange:"rgba(0,0,0,0.5)",color:"white",
+                      fontSize:10,padding:"3px 0",textAlign:"center",fontWeight:700}}>{p.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ):(
+            <div style={{padding:"14px 18px",background:"#FFF8F2",border:`1px dashed ${C.orange}`,borderRadius:10,fontSize:13,color:C.orange}}>
+              📷 Vuelve al <strong>Paso 2</strong> y sube fotos del trabajador para activar el análisis IA.
+            </div>
+          )}
+          {aiLoad&&(
+            <div style={{display:"flex",alignItems:"center",gap:10,marginTop:14,padding:"12px 16px",
+              background:`${C.orange}11`,border:`1px solid ${C.orange}44`,borderRadius:10}}>
+              <span style={{fontSize:20}}>🔬</span>
+              <div>
+                <div style={{fontWeight:700,color:C.orange}}>Analizando foto con IA — {method}...</div>
+                <div style={{fontSize:11,color:C.muted}}>Procesando análisis biomecánico, espera unos segundos</div>
+              </div>
+            </div>
+          )}
+          {aiMsg[method]&&(
+            <div style={{marginTop:12,borderRadius:12,overflow:"hidden",border:`2px solid ${C.orange}`}}>
+              <div style={{background:`linear-gradient(135deg,${C.header},${C.orange})`,color:"white",
+                padding:"10px 16px",fontWeight:700,fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span>🩺 Análisis IA — {method}</span>
+                <button onClick={()=>setAiMsg(p=>({...p,[method]:""}))}
+                  style={{background:"rgba(255,255,255,0.2)",border:"none",color:"white",cursor:"pointer",fontSize:14,borderRadius:6,padding:"2px 8px"}}>✕</button>
+              </div>
+              <div style={{padding:16,fontSize:12,whiteSpace:"pre-wrap",lineHeight:1.75,
+                fontFamily:"monospace",color:C.text,maxHeight:380,overflowY:"auto",background:"#FDFAF6"}}>
+                {aiMsg[method]}
+              </div>
+              <div style={{background:"#FFF3E8",padding:"8px 16px",fontSize:11,color:C.muted,borderTop:`1px solid ${C.cardBorder}`}}>
+                ⚠ Confirma y ajusta cada valor en el formulario abajo.
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+      {method==="REBA"&&<REBAPanel s={reba} set={setReba}/>}
+      {method==="RULA"&&<RULAPanel s={rula} set={setRula}/>}
+      {method==="OWAS"&&<OWASPanel s={owas} set={setOwas}/>}
+      {method==="NIOSH"&&<NIOSHPanel s={niosh} set={setNiosh}/>}
+      {method==="MMC"&&<MMCPanel s={mmc} set={setMmc}/>}
+      {!method&&<div style={{textAlign:"center",padding:50,color:C.muted,background:"white",borderRadius:14,border:`2px dashed ${C.cardBorder}`}}>
+        <div style={{fontSize:32,marginBottom:10}}>👆</div>
+        <div style={{fontWeight:700,fontSize:15,color:C.textMid}}>Selecciona un método arriba para comenzar</div>
+      </div>}
+      <Nav onBack={()=>setStep(1)} onNext={()=>setStep(3)} nextLabel="Ver Resultados →"/>
+    </div>
+  );
+
+  // STEP 3
+  const res=getRes();
+  if(step===3)return wrap(
+    <Card title="📊 Resumen de Riesgo Ergonómico">
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        {Object.entries(res).map(([m,r])=>(
+          <div key={m} style={{background:C.bg,border:`2px solid ${C.r[r.level]}44`,borderRadius:12,padding:16}}>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:8,color:C.orange}}>{m}</div>
+            {m==="REBA"&&<><Badge level={r.level} text={`Score ${r.fin}/15`}/><div style={{fontSize:11,color:C.muted,marginTop:4}}>A:{r.sA} B:{r.sB} C:{r.sC}</div></>}
+            {m==="RULA"&&<><Badge level={r.level} text={`Score ${r.fin}`}/><div style={{fontSize:11,color:C.muted,marginTop:4}}>A:{r.sA} B:{r.sB}</div></>}
+            {m==="OWAS"&&<><Badge level={r.level} text={`Cat.${r.cat}·${r.code}`}/><div style={{fontSize:11,color:C.muted,marginTop:4}}>{r.action}</div></>}
+            {m==="NIOSH"&&<><Badge level={r.level} text={`LI=${r.LI}`}/><div style={{fontSize:11,color:C.muted,marginTop:4}}>RWL={r.RWL}kg</div></>}
+            {m==="MMC"&&<><Badge level={r.level} text={`${mmc.peso}kg·Lím:${r.limite}kg`}/><div style={{fontSize:11,color:C.muted,marginTop:4}}>{+r.exceso>0?`Excede ${r.exceso}kg`:"Dentro del límite"} · {r.nF} factores</div></>}
+          </div>
+        ))}
+      </div>
+      <Nav onBack={()=>setStep(2)} onNext={()=>setStep(4)} nextLabel="Generar Informe →"/>
+    </Card>
+  );
+
+  // STEP 4
+  const ri=getRes();
+  return wrap(
+    <div>
+      <div className="no-print" style={{marginBottom:14,display:"flex",gap:8}}>
+        <OBtn label="🖨 Imprimir / PDF" onClick={()=>window.print()}/>
+        <OBtn label="← Resultados" onClick={()=>setStep(3)} outline/>
+      </div>
+      <div style={{background:"white",maxWidth:800,margin:"0 auto",padding:32,border:`1px solid ${C.cardBorder}`,borderRadius:16}}>
+        <div style={{background:`linear-gradient(135deg,${C.header},${C.orange})`,borderRadius:12,padding:"20px 24px",marginBottom:20,color:"white"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:11,opacity:0.8,letterSpacing:"1px",textTransform:"uppercase"}}>PANACEA MEDICINA OCUPACIONAL</div>
+              <div style={{fontSize:22,fontWeight:800,marginTop:2}}>INFORME ERGONÓMICO</div>
+              <div style={{fontSize:12,opacity:0.85,marginTop:4}}>Evaluación de Puesto de Trabajo · {info.fecha}</div>
+            </div>
+            <div style={{textAlign:"right",fontSize:12,opacity:0.9}}>
+              <div>panaceamedocup@gmail.com</div>
+              <div>CMP 102517 · RNE 13334</div>
+            </div>
+          </div>
+        </div>
+        <div style={{background:C.bg,borderRadius:10,padding:16,marginBottom:20}}>
+          <div style={{fontWeight:700,color:C.orange,marginBottom:10,textTransform:"uppercase",fontSize:12}}>Datos del Puesto</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:13}}>
+            {[["Empresa",info.empresa],["Trabajador",info.trabajador],["DNI",info.dni],["Cargo",info.cargo],["Puesto",info.puesto],["Área",info.area],["Tarea",info.tarea],["Evaluador",info.evaluador]].map(([l,v])=>(
+              <div key={l}><span style={{color:C.muted,fontSize:11,fontWeight:600}}>{l.toUpperCase()}: </span><strong>{v||"—"}</strong></div>
+            ))}
+          </div>
+        </div>
+        {photos.length>0&&<div style={{marginBottom:20}}>
+          <div style={{fontWeight:700,color:C.orange,marginBottom:10,textTransform:"uppercase",fontSize:12}}>Registro Fotográfico</div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {photos.map((p,i)=>(
+              <div key={i} style={{borderRadius:10,overflow:"hidden",border:`2px solid ${C.cardBorder}`}}>
+                <img src={p.url} alt="" style={{width:140,height:110,objectFit:"cover",display:"block"}}/>
+                <div style={{background:C.bg,padding:"4px 8px",fontSize:11,color:C.muted,textAlign:"center"}}>{p.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>}
+        {ri.MMC&&<div style={{border:`2px solid ${C.orange}`,borderRadius:10,padding:16,marginBottom:14,background:"#FFF8F2"}}>
+          <div style={{fontWeight:700,color:C.orange,marginBottom:8}}>⚖️ MMC — RM N° 375-2008-TR / ISO 11228-1</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <div style={{width:14,height:14,borderRadius:"50%",background:C.r[ri.MMC.level]}}/>
+            <strong style={{color:C.r[ri.MMC.level]}}>{mmc.peso}kg — Límite ({mmc.frec}): {ri.MMC.limite}kg {+ri.MMC.exceso>0?`— EXCEDE ${ri.MMC.exceso}kg`:"— DENTRO DEL LÍMITE"}</strong>
+          </div>
+          <ul style={{margin:"4px 0 0",paddingLeft:18,fontSize:12}}>
+            {(recsDB.MMC[Math.min(ri.MMC.level,recsDB.MMC.length-1)]||[]).map((r,i)=><li key={i}>{r}</li>)}
+          </ul>
+        </div>}
+        {Object.entries(ri).filter(([m])=>m!=="MMC").map(([m,r])=>(
+          <div key={m} style={{border:`1px solid ${C.cardBorder}`,borderRadius:10,padding:16,marginBottom:12}}>
+            <div style={{fontWeight:700,color:C.orange,marginBottom:6}}>{m}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <div style={{width:14,height:14,borderRadius:"50%",background:C.r[r.level]}}/>
+              <strong style={{color:C.r[r.level]}}>
+                {m==="REBA"&&`Score ${r.fin}/15 — ${rLabel[r.level]}`}
+                {m==="RULA"&&`Score ${r.fin} — ${rLabel[r.level]}`}
+                {m==="OWAS"&&`Cat.${r.cat} (${r.code}) — ${r.action}`}
+                {m==="NIOSH"&&`LI=${r.LI} (RWL=${r.RWL}kg) — ${rLabel[r.level]}`}
+              </strong>
+            </div>
+            <ul style={{margin:"4px 0 0",paddingLeft:18,fontSize:12}}>
+              {(recsDB[m]?.[Math.min(r.level,(recsDB[m]?.length??1)-1)]||[]).map((rec,i)=><li key={i}>{rec}</li>)}
+            </ul>
+          </div>
+        ))}
+        <div style={{borderTop:`2px solid ${C.cardBorder}`,paddingTop:16,textAlign:"right"}}>
+          <div style={{display:"inline-block",textAlign:"center"}}>
+            <div style={{borderTop:`1px solid ${C.text}`,paddingTop:8,width:240}}>
+              <div style={{fontWeight:800,fontSize:14}}>{info.evaluador}</div>
+              <div style={{fontSize:11,color:C.muted}}>Médico Ocupacional · CMP 102517 · RNE 13334</div>
+              <div style={{fontSize:11,color:C.orange,fontWeight:600}}>Panacea Medicina Ocupacional</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
