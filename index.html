@@ -862,23 +862,33 @@ function App() {
     if (!m || !photos.length) return;
     setAiLoad(true); setFilled(false); setAiMsg(p => ({...p, [m]:""}));
     try {
+      const rawTexts = [];
       const results = [];
       for (let i=0; i<photos.length; i++) {
         const txt = await callWorker(photos[i].url, m);
+        rawTexts.push(txt);
         results.push(`📸 ${photos[i].label}:\n${txt}`);
       }
       const final = results.length === 1
         ? results[0]
         : `✅ ANÁLISIS CONSOLIDADO (${results.length} fotos)\n${"─".repeat(40)}\n${results.join("\n\n─────\n\n")}`;
       setAiMsg(p => ({...p, [m]:final}));
-      afterAnalysis(results[0], m);
+      // Parsea cada foto cruda (sin prefijo 📸) y mergea valores
+      let merged = {};
+      for (const raw of rawTexts) {
+        const parsed = parseIA(raw, m);
+        if (parsed) merged = {...merged, ...parsed};
+      }
+      // afterAnalysis con el primer texto crudo + valores mergeados de todas
+      afterAnalysis(rawTexts[0], m, merged);
     } catch(e) {
       setAiMsg(p => ({...p, [m]:"Error de conexión."}));
     }
     setAiLoad(false);
   };
 
-  const afterAnalysis = (txt, m) => {
+  // afterAnalysis acepta vals opcionales pre-mergeados desde analyzeAll
+  const afterAnalysis = (txt, m, preVals) => {
     const valM = txt.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*(.+?)(?:\n\n|$)/si);
     if (valM) setHallazgos(valM[1].trim());
     const tareas = [];
@@ -906,7 +916,7 @@ function App() {
       setFilled(true);
       return;
     }
-    const vals = parseIA(txt, m);
+    const vals = (preVals && Object.keys(preVals).length > 0) ? preVals : parseIA(txt, m);
     if (vals) setReviewData({method:m, vals});
   };
 
