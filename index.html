@@ -161,7 +161,7 @@ const Header = () => (
           ERGO — Evaluación Ergonómica Integral
         </div>
         <div style={{fontSize:12,color:"rgba(255,255,255,0.8)"}}>
-          Dr. M. Ochoa Cuadros · CMP 102517 · RNE/RNA 13334
+          Dr. W. Ochoa Cuadros · CMP 102517 · RNE/RNA 13334
         </div>
       </div>
       <div style={{background:"rgba(255,255,255,0.15)",borderRadius:10,
@@ -686,83 +686,30 @@ function parseIA(txt, m) {
   return Object.keys(vals).length > 0 ? vals : null;
 }
 
-// ── PROPAGACIÓN ENTRE MÉTODOS ─────────────────────────────────────────────
-// Convierte valores entre escalas al propagar de un método a otro
-function propagate(sourceMethod, vals, targetMethod, targetState) {
-  const next = {...targetState};
-  if (sourceMethod === "REBA" && targetMethod === "RULA") {
-    if (vals.neck  !== undefined) next.neck  = vals.neck;
-    if (vals.neckT !== undefined) next.neckT = vals.neckT;
-    if (vals.neckS !== undefined) next.neckS = vals.neckS;
-    if (vals.trunk !== undefined) next.trunk = vals.trunk;
-    if (vals.trunkT!== undefined) next.trunkT= vals.trunkT;
-    if (vals.trunkS!== undefined) next.trunkS= vals.trunkS;
-    if (vals.ua    !== undefined) next.ua    = vals.ua;
-    if (vals.la    !== undefined) next.la    = vals.la;
-    if (vals.shr   !== undefined) next.shr   = vals.shr;
-    if (vals.wristT!== undefined) next.wristT= vals.wristT;
-  } else if (sourceMethod === "REBA" && targetMethod === "OWAS") {
-    if (vals.trunk !== undefined) next.back = Math.min(vals.trunk, 4);
-    if (vals.ua    !== undefined) next.arms = vals.ua >= 3 ? 2 : 1;
-    if (vals.legs  !== undefined) next.legs = vals.legs;
-    if (vals.load  !== undefined) next.load = Math.max(1, vals.load); // OWAS carga mínima es 1
-  } else if (sourceMethod === "RULA" && targetMethod === "REBA") {
-    if (vals.neck  !== undefined) next.neck  = vals.neck;
-    if (vals.neckT !== undefined) next.neckT = vals.neckT;
-    if (vals.neckS !== undefined) next.neckS = vals.neckS;
-    if (vals.trunk !== undefined) next.trunk = vals.trunk;
-    if (vals.trunkT!== undefined) next.trunkT= vals.trunkT;
-    if (vals.trunkS!== undefined) next.trunkS= vals.trunkS;
-    if (vals.ua    !== undefined) next.ua    = vals.ua;
-    if (vals.la    !== undefined) next.la    = vals.la;
-    if (vals.shr   !== undefined) next.shr   = vals.shr;
-    if (vals.wristT!== undefined) next.wristT= vals.wristT;
-  } else if (sourceMethod === "RULA" && targetMethod === "OWAS") {
-    if (vals.trunk !== undefined) next.back = Math.min(vals.trunk, 4);
-    if (vals.ua    !== undefined) next.arms = vals.ua >= 3 ? 2 : 1;
-    if (vals.legs  !== undefined) next.legs = Math.min(vals.legs, 2);
-  } else if (sourceMethod === "OWAS" && targetMethod === "REBA") {
-    if (vals.back !== undefined) next.trunk = Math.min(vals.back, 4);
-    if (vals.arms !== undefined) next.ua    = vals.arms===3?4:vals.arms===2?3:2;
-    if (vals.legs !== undefined) next.legs  = vals.legs;
-    if (vals.load !== undefined) next.load  = Math.max(0, vals.load-1);
-  } else if (sourceMethod === "OWAS" && targetMethod === "RULA") {
-    if (vals.back !== undefined) next.trunk = Math.min(vals.back, 4);
-    if (vals.arms !== undefined) next.ua    = vals.arms===3?4:vals.arms===2?3:2;
-    if (vals.legs !== undefined) next.legs  = Math.min(vals.legs, 2);
-  }
-  return next;
-}
-
-// Extrae factores MMC desde texto IA o desde valores confirmados de REBA/RULA
+// ── PROPAGACIÓN: SOLO REBA → MMC (factores de riesgo, no valores posturales) ──
+// Cada método ergonómico se evalúa de forma independiente.
+// La única propagación válida es de REBA hacia MMC, porque comparten
+// los mismos factores de riesgo observados (torsión, agarre, frecuencia).
 function extractMMCFactors(vals, sourceMethod, texto) {
+  // Solo propaga desde REBA
+  if (sourceMethod !== "REBA") return [];
   const f = [];
   const add = id => { if (!f.includes(id)) f.push(id); };
-
-  if (sourceMethod === "REBA" || sourceMethod === "RULA") {
-    if (vals.trunkT === true) add("asim");
-    if (vals.coup !== undefined && vals.coup >= 2) add("agr");
-    if (vals.act  !== undefined && vals.act  >= 2) add("freq");
-    if (vals.legs !== undefined && vals.legs >= 3) add("alt");
-    if (vals.fA   !== undefined && vals.fA   >= 2) add("agr");
-    if (vals.mA   !== undefined && vals.mA   >= 1) add("freq");
-  }
-  if (sourceMethod === "OWAS") {
-    if (vals.back >= 3) add("asim");
-    if (vals.arms >= 2) add("alt");
-    if (vals.load === 3) add("peso");
-  }
-  if (sourceMethod === "NIOSH") {
-    if (vals.H && vals.H > 50) add("dist");
-    if (vals.A && vals.A > 30) add("asim");
-    if (vals.V && (vals.V < 30 || vals.V > 150)) add("alt");
-  }
-  // Desde texto libre del análisis IA
+  // Torsión de tronco → factor de asimetría MMC
+  if (vals.trunkT === true) add("asim");
+  // Acoplamiento malo/inaceptable → agarre deficiente
+  if (vals.coup !== undefined && vals.coup >= 2) add("agr");
+  // Actividad repetitiva → alta frecuencia
+  if (vals.act  !== undefined && vals.act  >= 2) add("freq");
+  // Piernas en cuclillas/rodillas → postura desfavorable (altura)
+  if (vals.legs !== undefined && vals.legs >= 3) add("alt");
+  // Desde texto libre de valoración clínica IA
   if (texto) {
-    if (/superficie.*inestable/i.test(texto)) add("sue");
-    if (/carga.*inestable/i.test(texto))      add("ines");
-    if (/sin.*carretilla|sin.*ayuda.*mec/i.test(texto)) add("eq");
-    if (/espacio.*restringido/i.test(texto))  add("esp");
+    if (/superficie.*inestable/i.test(texto))              add("sue");
+    if (/carga.*inestable/i.test(texto))                   add("ines");
+    if (/sin.*carretilla|sin.*ayuda.*mec/i.test(texto))    add("eq");
+    if (/espacio.*restringido/i.test(texto))               add("esp");
+    if (/encima.*hombro|bajo.*rodilla|nivel del suelo/i.test(texto)) add("alt");
   }
   return f;
 }
@@ -774,7 +721,7 @@ function App() {
     empresa:"", trabajador:"", dni:"", sexo:"masculino",
     cargo:"", puesto:"", area:"", tarea:"",
     fecha: new Date().toISOString().split("T")[0],
-    evaluador:"Dr. Miguel Ochoa Cuadros",
+    evaluador:"Dr. Wenceslao Ochoa Cuadros",
     metodos:[]
   });
   const [photos,  setPhotos]  = useState([]);
@@ -806,7 +753,7 @@ function App() {
   const [hallazgos,   setHallazgos]   = useState("");
   const [tareasDesc,  setTareasDesc]  = useState([]);
 
-  const fileRef = useRef();
+  const [aiMinimized, setAiMinimized] = useState(false);
 
   // Ajusta grupo MMC automáticamente cuando cambia el sexo
   useEffect(() => {
@@ -928,37 +875,22 @@ function App() {
     if (vals) setReviewData({method:m, vals});
   };
 
-  // Confirma valores del panel de revisión y propaga a otros métodos
+  // Confirma valores del panel de revisión
+  // Cada método se aplica de forma independiente.
+  // Solo REBA propaga factores de riesgo a MMC (no valores posturales).
   const confirmReview = () => {
     if (!reviewData) return;
     const {method:m, vals} = reviewData;
 
-    // Aplica al método confirmado
+    // Aplica los valores al método confirmado
     if      (m==="REBA")  setReba(p  => ({...p,...vals}));
     else if (m==="RULA")  setRula(p  => ({...p,...vals}));
     else if (m==="OWAS")  setOwas(p  => ({...p,...vals}));
     else if (m==="NIOSH") setNiosh(p => ({...p,...vals}));
 
-    const has = x => info.metodos.includes(x);
-
-    // Propaga datos comunes a otros métodos activos
-    if (m==="REBA") {
-      if (has("RULA"))  setRula(p  => propagate("REBA","RULA",  vals, p));
-      if (has("OWAS"))  setOwas(p  => propagate("REBA","OWAS",  vals, p));
-      if (has("NIOSH")) setNiosh(p => ({...p, coup: vals.coup>=2?"poor":vals.coup===1?"fair":"good"}));
-    } else if (m==="RULA") {
-      if (has("REBA"))  setReba(p  => propagate("RULA","REBA",  vals, p));
-      if (has("OWAS"))  setOwas(p  => propagate("RULA","OWAS",  vals, p));
-    } else if (m==="OWAS") {
-      if (has("REBA"))  setReba(p  => propagate("OWAS","REBA",  vals, p));
-      if (has("RULA"))  setRula(p  => propagate("OWAS","RULA",  vals, p));
-    } else if (m==="NIOSH") {
-      // NIOSH no propaga segmentos posturales, solo factores MMC
-    }
-
-    // Propaga factores a MMC si está activo
-    if (has("MMC")) {
-      const newF = extractMMCFactors(vals, m, aiMsg[m]||"");
+    // Solo REBA → MMC: propaga factores de riesgo (no valores posturales)
+    if (m==="REBA" && info.metodos.includes("MMC")) {
+      const newF = extractMMCFactors(vals, "REBA", aiMsg["REBA"]||"");
       if (newF.length > 0) {
         setMmc(p => ({...p, factores:[...new Set([...p.factores,...newF])]}));
       }
@@ -986,7 +918,82 @@ function App() {
   const IS = {width:"100%",padding:"9px 12px",border:`1px solid ${C.cb}`,
     borderRadius:8,background:C.inp,fontSize:13,color:C.text,boxSizing:"border-box"};
 
-  const wrap = ch => (
+  const [recsIA,    setRecsIA]    = useState("");  // recomendaciones generadas por IA
+  const [conclIA,   setConclIA]   = useState("");  // conclusiones generadas por IA
+  const [genLoad,   setGenLoad]   = useState(false);
+
+  // Genera recomendaciones y conclusiones con IA basadas en los resultados reales
+  const generarRecsConclIA = async (resultados, datosInfo, datosMmc, datosReba) => {
+    setGenLoad(true);
+    try {
+      const resumen = Object.entries(resultados).map(([m,r]) => {
+        if (m==="REBA")  return `REBA: Score ${r.fin}/15 — Nivel ${r.level} (${RL[r.level]}) — A:${r.sA} B:${r.sB} C:${r.sC}`;
+        if (m==="RULA")  return `RULA: Score ${r.fin} — Nivel ${r.level} (${RL[r.level]})`;
+        if (m==="OWAS")  return `OWAS: Código ${r.code} — Categoría ${r.cat} — ${r.action}`;
+        if (m==="NIOSH") return `NIOSH: LI=${r.LI} — RWL=${r.RWL}kg — Nivel ${r.level} (${RL[r.level]})`;
+        if (m==="MMC")   return `MMC: ${datosMmc.peso}kg — RM375 ${r.cumRM?"CUMPLE":"INCUMPLE"} (${r.limRM}kg) — ISO ${r.cumISO?"CUMPLE":"INCUMPLE"} (${r.limISO}kg) — Riesgo ${RL[r.level]}`;
+        return "";
+      }).join("\n");
+
+      const contexto = [
+        `Cargo: ${datosInfo.cargo||datosInfo.puesto||"no especificado"}`,
+        `Tarea: ${datosInfo.tarea||"no especificada"}`,
+        `Empresa: ${datosInfo.empresa}`,
+        datosInfo.metodos.includes("REBA") ? [
+          `Tronco: nivel ${datosReba.trunk}${datosReba.trunkT?" + torsión":""}`,
+          `Cuello: nivel ${datosReba.neck}`,
+          `Piernas: nivel ${datosReba.legs}`,
+          `Brazo sup: nivel ${datosReba.ua}`,
+          `Carga REBA: ${datosReba.load===2?">10kg":datosReba.load===1?"5-10kg":"<5kg"}${datosReba.shock?" + fuerza brusca":""}`,
+          `Agarre: ${["bueno","regular","malo","inaceptable"][datosReba.coup]}`,
+          `Actividad: ${["normal","estático","repetitivo","cambios rápidos"][datosReba.act]}`,
+        ].join(" · ") : "",
+        datosMmc.peso>0 ? `Carga real: ${datosMmc.peso}kg — ${datosMmc.frec} — capacitación: ${datosMmc.form==="si"?"sí":"no"}` : "",
+        datosMmc.factores.length>0 ? `Factores de riesgo MMC: ${datosMmc.factores.join(", ")}` : "",
+      ].filter(Boolean).join("\n");
+
+      const prompt = `Eres el Dr. Wenceslao Ochoa Cuadros, médico especialista en Medicina Ocupacional y del Medio Ambiente (UPCH), CMP 102517. Redacta en primera persona como evaluador.
+
+RESULTADOS DE LA EVALUACIÓN:
+${resumen}
+
+CONTEXTO DEL PUESTO:
+${contexto}
+
+Redacta DOS secciones en español, con lenguaje médico-ocupacional preciso y profesional:
+
+RECOMENDACIONES:
+- Basadas EXACTAMENTE en los hallazgos específicos de esta evaluación
+- Divididas en: Ingeniería (con medidas concretas según los segmentos comprometidos), Administrativas (rotación, límites de carga, capacitación), Vigilancia Médica (exámenes específicos según TME identificados)
+- Menciona segmentos corporales específicos comprometidos
+- Si hay carga, menciona el límite normativo aplicable
+- Máximo 250 palabras
+
+CONCLUSIONES:
+- Síntesis de los hallazgos más relevantes de esta evaluación específica
+- Mención de los factores de mayor contribución al riesgo
+- Pronóstico de TME específicos si no hay intervención
+- Referencia a la normativa aplicada (RM 375-2008-TR si aplica)
+- Máximo 150 palabras
+
+NO uses frases genéricas. Todo debe referirse a este caso específico.`;
+
+      const r = await fetch(WORKER_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({imageBase64:null, mediaType:null, method:"__TEXT__", prompt})
+      });
+      const d = await r.json();
+      const txt = d.result || "";
+      const recsM = txt.match(/RECOMENDACIONES[:\s]*([\s\S]*?)(?=CONCLUSIONES|$)/i);
+      const conclM = txt.match(/CONCLUSIONES[:\s]*([\s\S]*?)$/i);
+      if (recsM)  setRecsIA(recsM[1].trim());
+      if (conclM) setConclIA(conclM[1].trim());
+    } catch(e) {
+      setRecsIA("Error al generar recomendaciones. Revisa la conexión.");
+    }
+    setGenLoad(false);
+  };
     <div style={{minHeight:"100vh",background:C.bg,padding:20,maxWidth:900,margin:"0 auto"}}>
       <Header/><Bar step={step}/>{ch}
     </div>
@@ -1374,6 +1381,9 @@ function App() {
       <div className="noprint" style={{marginBottom:14,display:"flex",gap:8}}>
         <OBtn label="🖨 Imprimir / PDF" onClick={() => window.print()}/>
         <OBtn label="← Resultados" onClick={() => setStep(3)} outline/>
+        <OBtn label={genLoad?"⏳ Generando...":"✦ Generar Recs. y Conclusiones con IA"}
+          onClick={() => generarRecsConclIA(ri, info, mmc, reba)}
+          disabled={genLoad} small/>
       </div>
 
       <div style={{background:"white",maxWidth:800,margin:"0 auto",padding:40,
@@ -1905,91 +1915,74 @@ function App() {
             borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>
             Recomendaciones Ergonómicas
           </div>
-          <div style={{marginBottom:10}}>
-            <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
-              6.1 Medidas de Ingeniería (Inmediatas)
+          {recsIA ? (
+            <div style={{fontSize:12,lineHeight:1.9,whiteSpace:"pre-wrap",color:C.text}}>
+              {recsIA}
             </div>
-            <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
-              <li>Instalar mesa o plataforma elevada (70-90 cm) para eliminar levantamientos desde el suelo.</li>
-              <li>Implementar carretilla o transpaleta para cargas superiores a {ri.MMC ? ri.MMC.limAp : 25} kg.</li>
-              <li>Reorganizar acopio: altura de apilamiento entre rodillas y hombros del operador (60-130 cm).</li>
-              {ri.REBA && reba.coup>=2 && <li>Instalar asideros o mecanismos de agarre para mejorar tipo de agarre y reducir desviación de muñeca.</li>}
-            </ul>
-          </div>
-          <div style={{marginBottom:10}}>
-            <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
-              6.2 Medidas Administrativas
+          ) : (
+            <div>
+              <div style={{marginBottom:10}}>
+                <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>6.1 Medidas de Ingeniería (Inmediatas)</div>
+                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
+                  <li>Instalar mesa o plataforma elevada (70-90 cm) para eliminar levantamientos desde el suelo.</li>
+                  <li>Implementar carretilla o transpaleta para cargas superiores a {ri.MMC ? ri.MMC.limAp : 25} kg.</li>
+                  <li>Reorganizar acopio: altura entre rodillas y hombros del operador (60-130 cm).</li>
+                  {ri.REBA && reba.coup>=2 && <li>Instalar asideros o mecanismos de agarre para mejorar tipo de agarre y reducir desviación de muñeca.</li>}
+                </ul>
+              </div>
+              <div style={{marginBottom:10}}>
+                <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>6.2 Medidas Administrativas</div>
+                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
+                  <li>Capacitación en técnica correcta de levantamiento: rodillas flexionadas, carga pegada al cuerpo, espalda neutra, sin torsión.</li>
+                  <li>Límite individual: máximo {ri.MMC ? ri.MMC.limAp : 25} kg. Para cargas mayores, trabajo en equipo de 2 personas obligatorio.</li>
+                  <li>Rotación de tareas: máximo 30 minutos continuos de manipulación manual de cargas.</li>
+                  <li>Pausas activas de 5 minutos cada hora con ejercicios de estiramiento lumbar y hombros.</li>
+                </ul>
+              </div>
+              <div>
+                <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>6.3 Vigilancia Médica Ocupacional</div>
+                <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
+                  <li>Evaluación musculoesquelética de columna lumbar (L4-L5, L5-S1), hombros y muñecas.</li>
+                  <li>Aplicación del Cuestionario Nórdico Musculoesquelético (NMQ) y CMDQ para detección temprana.</li>
+                  <li>Re-evaluación ergonómica en 90 días post-implementación de medidas correctivas.</li>
+                  {mmc.form==="no" && <li>Capacitación inmediata en MMC — agravante activo según RM 375-2008-TR Art. 6.</li>}
+                </ul>
+              </div>
+              <div style={{marginTop:10,padding:"10px 14px",background:"#FFF8F2",
+                border:`1px dashed ${C.orange}`,borderRadius:8,fontSize:12,color:C.orange}}>
+                💡 Haz clic en <strong>"Generar Recs. y Conclusiones con IA"</strong> para obtener recomendaciones específicas para este caso.
+              </div>
             </div>
-            <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
-              <li>Capacitación en técnica correcta de levantamiento: rodillas flexionadas, carga pegada al cuerpo, espalda neutra, sin torsión.</li>
-              <li>Límite individual: máximo {ri.MMC ? ri.MMC.limAp : 25} kg. Para cargas mayores, trabajo en equipo de 2 personas obligatorio.</li>
-              <li>Rotación de tareas: máximo 30 minutos continuos de manipulación manual de cargas.</li>
-              <li>Pausas activas de 5 minutos cada hora con ejercicios de estiramiento lumbar y hombros.</li>
-            </ul>
-          </div>
-          <div>
-            <div style={{fontWeight:700,marginBottom:6,color:C.mid}}>
-              6.3 Vigilancia Médica Ocupacional
-            </div>
-            <ul style={{paddingLeft:20,fontSize:12,lineHeight:1.8}}>
-              <li>Evaluación musculoesquelética de columna lumbar (L4-L5, L5-S1), hombros y muñecas.</li>
-              <li>Aplicación del Cuestionario Nórdico Musculoesquelético (NMQ) y CMDQ para detección temprana.</li>
-              <li>Re-evaluación ergonómica en 90 días post-implementación de medidas correctivas.</li>
-              {mmc.form==="no" && <li>Capacitación inmediata en MMC — agravante activo según RM 375-2008-TR Art. 6.</li>}
-            </ul>
-          </div>
+          )}
         </div>
 
         {/* Conclusiones */}
         <div style={{marginBottom:24}}>
           <div style={{fontWeight:700,color:C.orange,fontSize:14,marginBottom:10,
             borderBottom:`2px solid ${C.orange}`,paddingBottom:4}}>Conclusiones</div>
-          <ol style={{paddingLeft:20,fontSize:12,lineHeight:2}}>
-            {ri.REBA && (
-              <li>La evaluación REBA evidencia riesgo ergonómico{" "}
-                <strong>{RL[ri.REBA.level]} (puntuación {ri.REBA.fin}/15 — Nivel {ri.REBA.level})</strong>{" "}
-                en el puesto de {info.cargo||info.puesto||"trabajo evaluado"}, principalmente determinado por{" "}
-                {reba.trunk>=3
-                  ? `la postura de flexión ${reba.trunk===4?">60°":"20-60°"} de tronco durante la manipulación de cargas`
-                  : "la postura adoptada durante la tarea evaluada"}.
+          {conclIA ? (
+            <div style={{fontSize:12,lineHeight:1.9,whiteSpace:"pre-wrap",color:C.text}}>
+              {conclIA}
+            </div>
+          ) : (
+            <ol style={{paddingLeft:20,fontSize:12,lineHeight:2}}>
+              {ri.REBA && (
+                <li>La evaluación REBA evidencia riesgo ergonómico{" "}
+                  <strong>{RL[ri.REBA.level]} (puntuación {ri.REBA.fin}/15 — Nivel {ri.REBA.level})</strong>{" "}
+                  en el puesto de {info.cargo||info.puesto||"trabajo evaluado"}.
+                </li>
+              )}
+              {ri.MMC && mmc.peso>0 && (
+                <li>Peso de {mmc.peso}kg: RM 375 {ri.MMC.cumRM?"✓":"✗"} ({ri.MMC.limRM}kg) · ISO 11228 {ri.MMC.cumISO?"✓":"✗"} ({ri.MMC.limISO}kg, {mmc.frec}).</li>
+              )}
+              {ri.NIOSH && <li>NIOSH: LI={ri.NIOSH.LI} · RWL={ri.NIOSH.RWL}kg — Riesgo {RL[ri.NIOSH.level]}.</li>}
+              {ri.RULA  && <li>RULA: Score {ri.RULA.fin} — Riesgo {RL[ri.RULA.level]}.</li>}
+              {ri.OWAS  && <li>OWAS: Código {ri.OWAS.code} — Categoría {ri.OWAS.cat} — {ri.OWAS.action}.</li>}
+              <li>Se requiere intervención ergonómica{" "}
+                <strong>{ri.REBA && ri.REBA.level>=3 ? "inmediata" : "a corto plazo"}</strong>.
               </li>
-            )}
-            {ri.REBA && ri.REBA.level>=3 && (
-              <li>Los factores de mayor contribución al riesgo son:{" "}
-                {[reba.trunk>=3 && `flexión de tronco ${reba.trunk===4?">60°":"20-60°"} (nivel ${reba.trunk})`,
-                  reba.legs>=3  && `postura en ${reba.legs===4?"cuclillas":"semisquatting"} (nivel ${reba.legs})`,
-                  reba.load===2 && "carga >10kg (corrección +2)",
-                  reba.coup>=2  && `agarre ${["","","malo","inaceptable"][reba.coup]} (+${reba.coup})`
-                ].filter(Boolean).join(", ")}.
-              </li>
-            )}
-            {ri.MMC && mmc.peso>0 && (
-              <li>Respecto a la <strong>RM 375-2008-TR</strong>: el peso de {mmc.peso}kg{" "}
-                {ri.MMC.cumRM?"cumple":"incumple"} el límite general ({ri.MMC.limRM}kg para{" "}
-                {info.sexo==="masculino"?"varón":"mujer"}).
-                {reba.trunk>=3
-                  ? ` No obstante, con postura de tronco en flexión ${reba.trunk===4?">60°":"20-60°"}, el límite biomecánicamente aceptable se reduce a 10-15 kg.`
-                  : ""}
-                {" "}Respecto a ISO 11228-1: {ri.MMC.cumISO?"cumple":"incumple"} el límite por frecuencia ({ri.MMC.limISO}kg, exposición {mmc.frec}).
-              </li>
-            )}
-            {ri.NIOSH && <li>Ecuación NIOSH: LI = <strong>{ri.NIOSH.LI}</strong> · RWL = {ri.NIOSH.RWL}kg — Riesgo {RL[ri.NIOSH.level]}.</li>}
-            {ri.RULA  && <li>RULA: Score {ri.RULA.fin} — Riesgo {RL[ri.RULA.level]}.</li>}
-            {ri.OWAS  && <li>OWAS: Código {ri.OWAS.code} — Categoría {ri.OWAS.cat} — {ri.OWAS.action}.</li>}
-            {ri.REBA && ri.REBA.level>=3 && (
-              <li>Sin intervención, el trabajador presenta riesgo elevado de desarrollar:{" "}
-                {[reba.trunk>=3 && "lumbalgia crónica y hernia discal lumbar (L4-L5, L5-S1)",
-                  reba.ua>=3    && "síndrome del manguito rotador",
-                  reba.wrist>=2 && "síndrome del túnel carpiano",
-                  reba.legs>=3  && "condropatía rotuliana bilateral"
-                ].filter(Boolean).join(", ")}.
-              </li>
-            )}
-            <li>Se requiere intervención ergonómica{" "}
-              <strong>{ri.REBA && ri.REBA.level>=3 ? "inmediata e impostergable" : "a corto plazo"}</strong>,
-              priorizando controles de ingeniería para eliminar los factores de riesgo identificados.
-            </li>
-          </ol>
+            </ol>
+          )}
         </div>
 
         {/* Firma */}
