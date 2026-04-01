@@ -242,55 +242,48 @@ const REBA_TC = [
 ];
 
 function calcReba(s) {
+  // Sanitizar inputs contra NaN/undefined
+  const n = (v, def) => { const x = Number(v); return isNaN(x) ? def : x; };
+  const b = v => !!v;
+
   // ── Grupo A: Tronco + Cuello + Piernas ──
-  // Tronco: base 1-5 (UI da 1-4, pero con modificadores puede llegar a 5+)
-  const trunkBase = Math.min(Math.max(s.trunk, 1), 5);
-  const trunkMod  = (s.trunkT ? 1 : 0) + (s.trunkS ? 1 : 0);
+  const trunkBase = Math.min(Math.max(n(s.trunk,1), 1), 5);
+  const trunkMod  = (b(s.trunkT) ? 1 : 0) + (b(s.trunkS) ? 1 : 0);
   const trunkFin  = Math.min(trunkBase + trunkMod, 5);
 
-  // Cuello: base 1-2, con modificadores hasta 3
-  const neckBase = Math.min(Math.max(s.neck, 1), 2);
-  const neckMod  = (s.neckT ? 1 : 0) + (s.neckS ? 1 : 0);
+  const neckBase = Math.min(Math.max(n(s.neck,1), 1), 2);
+  const neckMod  = (b(s.neckT) ? 1 : 0) + (b(s.neckS) ? 1 : 0);
   const neckFin  = Math.min(neckBase + neckMod, 3);
 
-  // Piernas: 1-4 directo del selector
-  const legsFin = Math.min(Math.max(s.legs, 1), 4);
+  const legsFin = Math.min(Math.max(n(s.legs,1), 1), 4);
 
-  // Lookup Tabla A
   const scoreTA = REBA_TABLE_A[trunkFin - 1]?.[neckFin - 1]?.[legsFin - 1] ?? 9;
 
-  // Score A = Tabla A + Carga + Shock
-  const loadScore = Math.min(Math.max(s.load, 0), 2);
-  const shockAdd  = s.shock ? 1 : 0;
+  const loadScore = Math.min(Math.max(n(s.load,0), 0), 2);
+  const shockAdd  = b(s.shock) ? 1 : 0;
   const sA = Math.min(scoreTA + loadScore + shockAdd, 12);
 
   // ── Grupo B: Brazo superior + Brazo inferior + Muñeca ──
-  const uaBase = Math.min(Math.max(s.ua, 1), 4);
-  const uaMod  = (s.shr ? 1 : 0) + (s.abd ? 1 : 0) - (s.sup ? 1 : 0);
+  const uaBase = Math.min(Math.max(n(s.ua,1), 1), 4);
+  const uaMod  = (b(s.shr) ? 1 : 0) + (b(s.abd) ? 1 : 0) - (b(s.sup) ? 1 : 0);
   const uaFin  = Math.min(Math.max(uaBase + uaMod, 1), 6);
 
-  // Brazo inferior: 1-2
-  const laFin = Math.min(Math.max(s.la, 1), 2);
+  const laFin = Math.min(Math.max(n(s.la,1), 1), 2);
 
-  // Muñeca: base 1-2, con torsión hasta 3
-  const wristBase = Math.min(Math.max(s.wrist, 1), 2);
-  const wristFin  = Math.min(wristBase + (s.wristT ? 1 : 0), 3);
+  const wristBase = Math.min(Math.max(n(s.wrist,1), 1), 2);
+  const wristFin  = Math.min(wristBase + (b(s.wristT) ? 1 : 0), 3);
 
-  // Lookup Tabla B
   const scoreTB = REBA_TABLE_B[uaFin - 1]?.[laFin - 1]?.[wristFin - 1] ?? 9;
 
-  // Score B = Tabla B + Acoplamiento
-  const coupScore = Math.min(Math.max(s.coup, 0), 3);
+  const coupScore = Math.min(Math.max(n(s.coup,0), 0), 3);
   const sB = Math.min(scoreTB + coupScore, 12);
 
   // ── Tabla C ──
   const sC = REBA_TC[Math.min(sA - 1, 11)]?.[Math.min(sB - 1, 11)] ?? 12;
 
-  // ── Score final = C + Actividad ──
-  const actScore = Math.min(Math.max(s.act, 0), 3);
+  const actScore = Math.min(Math.max(n(s.act,0), 0), 3);
   const fin = Math.min(sC + actScore, 15);
 
-  // ── Nivel de riesgo ──
   const level = fin <= 1 ? 0 : fin <= 3 ? 1 : fin <= 7 ? 2 : fin <= 10 ? 3 : 4;
 
   return {sA, sB, sC, fin, level, trunkFin, neckFin, legsFin, uaFin, wristFin};
@@ -345,44 +338,39 @@ const RULA_TABLE_C = [
 ];
 
 function calcRula(s) {
-  // ── Grupo A: Brazo sup + Brazo inf + Muñeca ──
-  const uaBase = Math.min(Math.max(s.ua, 1), 4);
-  const uaMod  = (s.shr ? 1 : 0) - (s.sup ? 1 : 0);
+  const n = (v, def) => { const x = Number(v); return isNaN(x) ? def : x; };
+  const b = v => !!v;
+
+  // ── Grupo A ──
+  const uaBase = Math.min(Math.max(n(s.ua,1), 1), 4);
+  const uaMod  = (b(s.shr) ? 1 : 0) - (b(s.sup) ? 1 : 0);
   const uaFin  = Math.min(Math.max(uaBase + uaMod, 1), 6);
 
-  const laBase = Math.min(Math.max(s.la, 1), 2);
-  const laFin  = Math.min(laBase + (s.mid ? 1 : 0), 3);
+  const laBase = Math.min(Math.max(n(s.la,1), 1), 2);
+  const laFin  = Math.min(laBase + (b(s.mid) ? 1 : 0), 3);
 
-  const wristFin = Math.min(Math.max(s.wrist, 1), 4);
-  const wristTw  = s.wristT ? 1 : 0; // 0=twist1, 1=twist2
+  const wristFin = Math.min(Math.max(n(s.wrist,1), 1), 4);
+  const wristTw  = b(s.wristT) ? 1 : 0;
 
-  // Lookup Tabla A
   const scoreTA = RULA_TABLE_A[uaFin - 1]?.[laFin - 1]?.[wristFin - 1]?.[wristTw] ?? 9;
+  const sA = scoreTA + Math.min(Math.max(n(s.mA,0), 0), 1) + Math.min(Math.max(n(s.fA,0), 0), 3);
 
-  // Score A = Tabla A + Músculo A + Fuerza A
-  const sA = scoreTA + Math.min(Math.max(s.mA, 0), 1) + Math.min(Math.max(s.fA, 0), 3);
-
-  // ── Grupo B: Cuello + Tronco + Piernas ──
-  const neckBase = Math.min(Math.max(s.neck, 1), 4);
-  const neckMod  = (s.neckT ? 1 : 0) + (s.neckS ? 1 : 0);
+  // ── Grupo B ──
+  const neckBase = Math.min(Math.max(n(s.neck,1), 1), 4);
+  const neckMod  = (b(s.neckT) ? 1 : 0) + (b(s.neckS) ? 1 : 0);
   const neckFin  = Math.min(neckBase + neckMod, 6);
 
-  const trunkBase = Math.min(Math.max(s.trunk, 1), 4);
-  const trunkMod  = (s.trunkT ? 1 : 0) + (s.trunkS ? 1 : 0);
+  const trunkBase = Math.min(Math.max(n(s.trunk,1), 1), 4);
+  const trunkMod  = (b(s.trunkT) ? 1 : 0) + (b(s.trunkS) ? 1 : 0);
   const trunkFin  = Math.min(trunkBase + trunkMod, 6);
 
-  const legsFin = Math.min(Math.max(s.legs, 1), 2);
+  const legsFin = Math.min(Math.max(n(s.legs,1), 1), 2);
 
-  // Lookup Tabla B: [cuello-1][tronco-1][piernas-1]
   const scoreTB = RULA_TABLE_B[neckFin - 1]?.[trunkFin - 1]?.[legsFin - 1] ?? 9;
-
-  // Score B = Tabla B + Músculo B + Fuerza B
-  const sB = scoreTB + Math.min(Math.max(s.mB, 0), 1) + Math.min(Math.max(s.fB, 0), 3);
+  const sB = scoreTB + Math.min(Math.max(n(s.mB,0), 0), 1) + Math.min(Math.max(n(s.fB,0), 0), 3);
 
   // ── Tabla C ──
   const fin = RULA_TABLE_C[Math.min(Math.max(sA - 1, 0), 7)]?.[Math.min(Math.max(sB - 1, 0), 6)] ?? 7;
-
-  // ── Nivel de riesgo ──
   const level = fin <= 2 ? 0 : fin <= 3 ? 1 : fin <= 4 ? 2 : fin <= 6 ? 3 : 4;
 
   return {sA, sB, fin, level};
@@ -1242,13 +1230,23 @@ function App() {
 
   const callWorker = async (photoUrl, m) => {
     const comp = await compress(photoUrl);
-    const r = await fetch(WORKER_URL, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({imageBase64: comp.split(",")[1], mediaType:"image/jpeg", method:m})
-    });
-    const d = await r.json();
-    return d.result || d.error || "Sin respuesta.";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
+    try {
+      const r = await fetch(WORKER_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({imageBase64: comp.split(",")[1], mediaType:"image/jpeg", method:m}),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      const d = await r.json();
+      return d.result || d.error || "Sin respuesta.";
+    } catch(e) {
+      clearTimeout(timeout);
+      if (e.name === "AbortError") throw new Error("Tiempo de espera agotado (60s). Intente con una imagen más pequeña o reintente.");
+      throw e;
+    }
   };
 
   const analyzeOne = async (photoUrl, m) => {
