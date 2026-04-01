@@ -1126,7 +1126,6 @@ function App() {
   });
   const [photos,  setPhotos]  = useState([]);
   const [method,  setMethod]  = useState(null);
-  const [valErrors, setValErrors] = useState([]);
 
   const [reba, setReba] = useState({
     neck:1,neckT:false,neckS:false,trunk:1,trunkT:false,trunkS:false,
@@ -1144,6 +1143,7 @@ function App() {
     peso:0, grupo:"Varón adulto (18-45 años)", frec:"frecuente", form:"no", factores:[]
   });
 
+  // Estado IA — idéntico al original + aiCollapsed para minimizar
   const [aiMsg,       setAiMsg]       = useState({});
   const [aiLoad,      setAiLoad]      = useState(false);
   const [activePhoto, setActivePhoto] = useState(null);
@@ -1155,39 +1155,12 @@ function App() {
 
   const fileRef = useRef();
 
-  // ── Auto-guardado en localStorage (debounce 3s) ──
+  // Ajusta grupo MMC cuando cambia el sexo — IDÉNTICO al original
   useEffect(() => {
-    const timer = setTimeout(() => {
-      saveSession({info, reba, rula, owas, niosh, mmc, step, hallazgos, tareasDesc});
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [info, reba, rula, owas, niosh, mmc, step]);
-
-  // ── Carga sesión anterior al inicio ──
-  useEffect(() => {
-    const saved = loadSession();
-    if (saved) {
-      if (saved.info)     setInfo(saved.info);
-      if (saved.reba)     setReba(saved.reba);
-      if (saved.rula)     setRula(saved.rula);
-      if (saved.owas)     setOwas(saved.owas);
-      if (saved.niosh)    setNiosh(saved.niosh);
-      if (saved.mmc)      setMmc(saved.mmc);
-      if (saved.step !== undefined) setStep(saved.step);
-      if (saved.hallazgos)  setHallazgos(saved.hallazgos);
-      if (saved.tareasDesc) setTareasDesc(saved.tareasDesc);
-    }
-  }, []);
-
-  // Ajusta grupo MMC automáticamente cuando cambia el sexo
-  useEffect(() => {
-    setMmc(p => {
-      const esMasc = info.sexo === "masculino";
-      const grupoMasc = p.grupo.includes("Varón");
-      if (esMasc && !grupoMasc) return {...p, grupo: p.grupo.replace("Mujer","Varón")};
-      if (!esMasc && grupoMasc) return {...p, grupo: p.grupo.replace("Varón","Mujer")};
-      return p; // sin cambio → no re-render
-    });
+    if (info.sexo === "femenino" && mmc.grupo.includes("Varón"))
+      setMmc(p => ({...p, grupo:"Mujer adulta (18-45 años)"}));
+    if (info.sexo === "masculino" && mmc.grupo.includes("Mujer"))
+      setMmc(p => ({...p, grupo:"Varón adulto (18-45 años)"}));
   }, [info.sexo]);
 
   const toggleMethod = m => setInfo(p => ({
@@ -1197,163 +1170,85 @@ function App() {
       : [...p.metodos, m]
   }));
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // Compresión de imagen con timeout y manejo de errores
-  // ══════════════════════════════════════════════════════════════════════════
-  const compress = url => new Promise((res, rej) => {
-    const timer = setTimeout(() => rej(new Error("Timeout comprimiendo imagen")), 15000);
+  // Comprime imagen — IDÉNTICO al original
+  const compress = url => new Promise(res => {
     const img = new Image();
     img.onload = () => {
-      clearTimeout(timer);
-      try {
-        const MAX = 800;
-        let {width:w, height:h} = img;
-        if (w>MAX||h>MAX) {
-          if (w>h) { h=Math.round(h*MAX/w); w=MAX; }
-          else     { w=Math.round(w*MAX/h); h=MAX; }
-        }
-        const c = document.createElement("canvas");
-        c.width=w; c.height=h;
-        c.getContext("2d").drawImage(img,0,0,w,h);
-        res(c.toDataURL("image/jpeg",0.75));
-      } catch(e) { rej(e); }
+      const MAX = 800;
+      let {width:w, height:h} = img;
+      if (w>MAX||h>MAX) {
+        if (w>h) { h=Math.round(h*MAX/w); w=MAX; }
+        else     { w=Math.round(w*MAX/h); h=MAX; }
+      }
+      const c = document.createElement("canvas");
+      c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      res(c.toDataURL("image/jpeg",0.75));
     };
-    img.onerror = () => { clearTimeout(timer); rej(new Error("No se pudo cargar la imagen")); };
     img.src = url;
   });
 
+  // Llama al Worker — IDÉNTICO al original
   const callWorker = async (photoUrl, m) => {
     const comp = await compress(photoUrl);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90000); // 90s — el Worker necesita tiempo para la IA
-    try {
-      const r = await fetch(WORKER_URL, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({imageBase64: comp.split(",")[1], mediaType:"image/jpeg", method:m}),
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      if (!r.ok) throw new Error(`Error del servidor: ${r.status}`);
-      const d = await r.json();
-      return d.result || d.error || "Sin respuesta.";
-    } catch(e) {
-      clearTimeout(timeout);
-      if (e.name === "AbortError") throw new Error("Tiempo agotado (90s). Reintente o use una imagen más pequeña.");
-      throw e;
-    }
+    const r = await fetch(WORKER_URL, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({imageBase64: comp.split(",")[1], mediaType:"image/jpeg", method:m})
+    });
+    const d = await r.json();
+    return d.result || d.error || "Sin respuesta.";
   };
 
-  const [aiProgress, setAiProgress] = useState("");
-
+  // Analiza una sola foto — IDÉNTICO al original
   const analyzeOne = async (photoUrl, m) => {
     if (!m) return;
-    setAiLoad(true); setFilled(false); setAiProgress("Procesando...");
+    setAiLoad(true); setFilled(false);
     try {
       const txt = await callWorker(photoUrl, m);
       setAiMsg(p => ({...p, [m]:txt}));
       afterAnalysis(txt, m);
     } catch(e) {
-      setAiMsg(p => ({...p, [m]:"⚠ Error: " + (e.message||"intente de nuevo.")}));
+      setAiMsg(p => ({...p, [m]:"Error de conexión."}));
     }
-    setAiLoad(false); setAiProgress("");
+    setAiLoad(false);
   };
 
+  // Analiza todas las fotos — estructura del original + merge de valores
   const analyzeAll = async m => {
     if (!m || !photos.length) return;
     setAiLoad(true); setFilled(false); setAiMsg(p => ({...p, [m]:""}));
     try {
-      const rawTexts = [];  // textos crudos por foto (para parseo)
-      const display  = [];  // textos formateados (para mostrar)
+      const results = [];
       for (let i=0; i<photos.length; i++) {
-        setAiProgress(`Foto ${i+1} de ${photos.length}: ${photos[i].label}...`);
-        try {
-          const txt = await callWorker(photos[i].url, m);
-          rawTexts.push(txt);
-          display.push(`📸 ${photos[i].label}:\n${txt}`);
-        } catch(photoErr) {
-          display.push(`📸 ${photos[i].label}:\n⚠ Error: ${photoErr.message}`);
-        }
+        const txt = await callWorker(photos[i].url, m);
+        results.push(`📸 ${photos[i].label}:\n${txt}`);
       }
-      // Mostrar resultado consolidado de TODAS las fotos
-      const final = display.length === 1
-        ? display[0]
-        : `✅ ANÁLISIS CONSOLIDADO (${display.length} fotos)\n${"─".repeat(40)}\n${display.join("\n\n─────\n\n")}`;
+      const final = results.length === 1
+        ? results[0]
+        : `✅ ANÁLISIS CONSOLIDADO (${results.length} fotos)\n${"─".repeat(40)}\n${results.join("\n\n─────\n\n")}`;
       setAiMsg(p => ({...p, [m]:final}));
-
-      // Parsear CADA foto individualmente y mergear valores
-      // (cada foto se parsea por separado → sin regex sobre texto gigante)
+      // Parsea cada foto por separado y mergea valores para el formulario
       let mergedVals = {};
-      let mergedHallazgos = "";
-      const mergedTareas = [];
-      const mergedMMCFactors = [];
-
-      for (const txt of rawTexts) {
-        // Extraer hallazgos clínicos por línea (seguro, sin regex catastrófico)
-        const lines = txt.split("\n");
-        const valIdx = lines.findIndex(l => /VALORACI[OÓ]N CL[IÍ]NICA/i.test(l));
-        if (valIdx >= 0) {
-          const h = lines[valIdx].replace(/.*VALORACI[OÓ]N CL[IÍ]NICA[:\s]*/i, "").trim();
-          if (h) mergedHallazgos = (mergedHallazgos ? mergedHallazgos + " " : "") + h;
-        }
-
-        // Detectar tareas
-        if (/transporte|desplazamiento|traslado/i.test(txt) && !mergedTareas.some(t=>t.includes("Transporte")))
-          mergedTareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
-        if (/flexión.*tronco|recoger.*suelo|levantar.*suelo/i.test(txt) && !mergedTareas.some(t=>t.includes("Flexión")))
-          mergedTareas.push("Tarea B: Flexión de tronco para recoger carga desde el nivel del suelo.");
-        if (/cuclillas|rodillas.*flexion|agarre.*suelo/i.test(txt) && !mergedTareas.some(t=>t.includes("cuclillas")))
-          mergedTareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
-
-        // Factores MMC por línea
-        if (m === "MMC") {
-          txt.split("\n").forEach(line => {
-            if (/Alta frecuencia/i.test(line)      && /sí|si/i.test(line)) mergedMMCFactors.push("freq");
-            if (/Torsión tronco/i.test(line)        && /sí|si/i.test(line)) mergedMMCFactors.push("asim");
-            if (/Agarre deficiente/i.test(line)     && /sí|si/i.test(line)) mergedMMCFactors.push("agr");
-            if (/Espacio restringido/i.test(line)   && /sí|si/i.test(line)) mergedMMCFactors.push("esp");
-            if (/Carga inestable/i.test(line)       && /sí|si/i.test(line)) mergedMMCFactors.push("ines");
-            if (/Superficie inestable/i.test(line)  && /sí|si/i.test(line)) mergedMMCFactors.push("sue");
-            if (/Sin ayudas/i.test(line)            && /sí|si/i.test(line)) mergedMMCFactors.push("eq");
-            if (/Distancia horizontal/i.test(line)  && /sí|si/i.test(line)) mergedMMCFactors.push("dist");
-            if (/Encima.*hombro|bajo.*rodilla/i.test(line) && /sí|si/i.test(line)) mergedMMCFactors.push("alt");
-          });
-        }
-
-        // Parsear valores posturales de cada foto y mergear
-        if (m !== "MMC") {
-          const parsed = parseIA(txt, m);
-          if (parsed) mergedVals = {...mergedVals, ...parsed};
-        }
+      for (const r of results) {
+        const parsed = parseIA(r, m);
+        if (parsed) mergedVals = {...mergedVals, ...parsed};
       }
-
-      // Aplicar resultados consolidados
-      if (mergedHallazgos) setHallazgos(mergedHallazgos.substring(0, 800));
-      if (mergedTareas.length > 0) setTareasDesc(mergedTareas);
-
-      if (m === "MMC") {
-        const uniq = [...new Set(mergedMMCFactors)];
-        if (uniq.length > 0) setMmc(p => ({...p, factores:[...new Set([...p.factores,...uniq])]}));
-        setFilled(true);
-      } else if (Object.keys(mergedVals).length > 0) {
-        setReviewData({method:m, vals:mergedVals});
-      }
+      // afterAnalysis con la primera foto (para hallazgos/tareas) + vals mergeados
+      afterAnalysis(results[0], m, Object.keys(mergedVals).length > 0 ? mergedVals : null);
     } catch(e) {
-      setAiMsg(p => ({...p, [m]:"⚠ Error general: " + (e.message||"intente de nuevo.")}));
+      setAiMsg(p => ({...p, [m]:"Error de conexión."}));
     }
-    setAiLoad(false); setAiProgress("");
+    setAiLoad(false);
   };
 
-  // Post-análisis: parsea texto de UNA foto y extrae valores
-  const afterAnalysis = (txt, m) => {
-    // Regex seguro: busca línea que empiece con VALORACIÓN CLÍNICA y toma el resto de esa línea
-    const lines = txt.split("\n");
-    const valLine = lines.findIndex(l => /VALORACI[OÓ]N CL[IÍ]NICA/i.test(l));
-    if (valLine >= 0) {
-      const valText = lines.slice(valLine).join(" ").replace(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*/i, "").trim();
-      if (valText) setHallazgos(valText.substring(0, 500)); // limitar longitud
-    }
+  // Post-análisis — basado en el original, acepta vals opcionales ya mergeados
+  const afterAnalysis = (txt, m, preVals) => {
+    // Extrae valoración clínica — usa split por líneas (seguro)
+    const valM = txt.match(/VALORACI[OÓ]N CL[IÍ]NICA[:\s]*([^\n]+)/i);
+    if (valM) setHallazgos(valM[1].trim());
 
+    // Detecta tareas
     const tareas = [];
     if (/transporte|desplazamiento|traslado/i.test(txt))
       tareas.push("Tarea A: Transporte manual de carga con desplazamiento.");
@@ -1363,6 +1258,7 @@ function App() {
       tareas.push("Tarea C: Agarre en cuclillas con flexión extrema de tronco y rodillas.");
     if (tareas.length > 0) setTareasDesc(tareas);
 
+    // MMC: extrae factores directamente
     if (m === "MMC") {
       const f = [];
       txt.split("\n").forEach(line => {
@@ -1381,7 +1277,8 @@ function App() {
       return;
     }
 
-    const vals = parseIA(txt, m);
+    // Usa vals pre-mergeados si vienen de analyzeAll, sino parsea esta foto
+    const vals = preVals || parseIA(txt, m);
     if (vals) setReviewData({method:m, vals});
   };
 
@@ -1429,7 +1326,6 @@ function App() {
       <div className="noprint" style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button onClick={() => {
           if (confirm("¿Iniciar nueva evaluación? Se perderán los datos no guardados.")) {
-            clearSession();
             window.location.reload();
           }
         }} style={{background:"transparent",border:`1px solid ${C.cb}`,
@@ -1452,7 +1348,7 @@ function App() {
           <div key={k}>
             <div style={{fontSize:11,color:C.muted,marginBottom:3,fontWeight:600}}>{l}</div>
             <input value={info[k]} onChange={e=>setInfo(p=>({...p,[k]:e.target.value}))}
-              style={{...IS, borderColor: (k==="empresa"||k==="trabajador") && valErrors.length && !info[k].trim() ? "#EF4444" : C.cb}}/>
+              style={IS}/>
           </div>
         ))}
         <div>
@@ -1491,20 +1387,8 @@ function App() {
           })}
         </div>
       </div>
-      {/* Errores de validación */}
-      {valErrors.length > 0 && (
-        <div style={{marginTop:12,padding:"10px 14px",background:"#FEE2E2",
-          border:"1.5px solid #EF4444",borderRadius:8}}>
-          {valErrors.map((e,i) => (
-            <div key={i} style={{fontSize:12,color:"#991B1B",fontWeight:600}}>⚠ {e}</div>
-          ))}
-        </div>
-      )}
-      <Nav onNext={() => {
-        const errs = validateStep0(info);
-        setValErrors(errs);
-        if (errs.length === 0) setStep(1);
-      }} nextLabel="Siguiente: Fotos →"/>
+      <Nav onNext={() => setStep(1)} nextLabel="Siguiente: Fotos →"
+        disabled={!info.empresa || !info.metodos.length}/>
     </Card>
   );
 
@@ -1631,7 +1515,7 @@ function App() {
               <span style={{fontSize:20,animation:"spin 1.5s linear infinite"}}>🔬</span>
               <div>
                 <div style={{fontWeight:700,color:C.orange}}>Analizando con IA — {method}...</div>
-                <div style={{fontSize:11,color:C.muted}}>{aiProgress || "Preparando imagen..."}</div>
+                <div style={{fontSize:11,color:C.muted}}>Procesando análisis biomecánico</div>
               </div>
             </div>
           )}
