@@ -208,14 +208,24 @@ const recsDB={REBA:[["Sin cambios."],["Revisar. Pausas activas."],["Modificar a 
 function App() {
   const {useState,useRef} = React;
   const [step,setStep]=useState(0);
-  const [info,setInfo]=useState({empresa:"",trabajador:"",dni:"",cargo:"",puesto:"",area:"",tarea:"",fecha:new Date().toISOString().split("T")[0],evaluador:"Dr. Miguel Ochoa Cuadros",metodos:[]});
+  const [info,setInfo]=useState({empresa:"",trabajador:"",dni:"",sexo:"masculino",cargo:"",puesto:"",area:"",tarea:"",fecha:new Date().toISOString().split("T")[0],evaluador:"Dr. Miguel Ochoa Cuadros",metodos:[]});
   const [photos,setPhotos]=useState([]);
   const [method,setMethod]=useState(null);
   const [reba,setReba]=useState({neck:1,neckT:false,neckS:false,trunk:1,trunkT:false,trunkS:false,legs:1,load:0,shock:false,ua:1,shr:false,abd:false,sup:false,la:1,wrist:1,wristT:false,coup:0,act:0});
   const [rula,setRula]=useState({ua:1,shr:false,sup:false,la:1,mid:false,wrist:1,wristT:false,mA:0,fA:0,neck:1,neckT:false,neckS:false,trunk:1,trunkT:false,trunkS:false,legs:1,mB:0,fB:0});
   const [owas,setOwas]=useState({back:1,arms:1,legs:1,load:1});
   const [niosh,setNiosh]=useState({L:0,H:25,V:75,D:25,A:0,F:1,dur:"2-8h",coup:"good"});
-  const [mmc,setMmc]=useState({peso:0,grupo:"Varón adulto (18-45 años)",frec:"frecuente",form:"no",factores:[]});
+  const [mmc,setMmc]=useState({peso:0,grupo:"",frec:"frecuente",form:"no",factores:[]});
+
+  // Auto-selecciona grupo MMC según sexo del trabajador
+  React.useEffect(()=>{
+    if(!info.sexo) return;
+    const grupos = NORMA.limites.map(l=>l.g);
+    if(info.sexo==="masculino" && (!mmc.grupo || mmc.grupo.includes("Mujer")))
+      setMmc(p=>({...p, grupo:"Varón adulto (18-45 años)"}));
+    if(info.sexo==="femenino" && (!mmc.grupo || mmc.grupo.includes("Varón")))
+      setMmc(p=>({...p, grupo:"Mujer adulta (18-45 años)"}));
+  },[info.sexo]);
   const [reviewData,setReviewData]=useState(null); // panel de revisión post-IA
   const [aiMsg,setAiMsg]=useState({});
   const [aiLoad,setAiLoad]=useState(false);
@@ -343,6 +353,7 @@ function App() {
     else if(m==="RULA") vals = autoFillRula(text);
     else if(m==="OWAS") { const v={}; const n=pat=>{const x=text.match(pat);return x?parseInt(x[1]):null;}; const bk=n(/ESPALDA[^:\n]*:\s*\[?(\d)\]?/i);if(bk)v.back=Math.min(bk,4);const ar=n(/BRAZOS[^:\n]*:\s*\[?(\d)\]?/i);if(ar)v.arms=Math.min(ar,3);const lg=n(/PIERNAS[^:\n]*:\s*\[?(\d)\]?/i);if(lg)v.legs=Math.min(lg,7);const ld=n(/CARGA[^:\n]*:\s*\[?(\d)\]?/i);if(ld)v.load=Math.min(ld,3);vals=v; }
     else if(m==="NIOSH") { const v={}; const n=pat=>{const x=text.match(pat);return x?parseFloat(x[1]):null;}; const H=n(/\bH[^\d\n]*?(\d+(?:\.\d+)?)\s*cm/i);if(H)v.H=H;const V=n(/\bV[^\d\n]*?(\d+(?:\.\d+)?)\s*cm/i);if(V)v.V=V;const D=n(/\bD[^\d\n]*?(\d+(?:\.\d+)?)\s*cm/i);if(D)v.D=D;const A=n(/\bA[^\d\n]*?(\d+(?:\.\d+)?)\s*°/i);if(A!==null)v.A=A;vals=v; }
+    else if(m==="MMC") { autoFillMMC(text); return 1; }
     if(Object.keys(vals).length > 0) {
       setReviewData({method:m, vals, text});
       return Object.keys(vals).length;
@@ -440,6 +451,13 @@ function App() {
             <input value={info[k]} onChange={e=>setInfo(p=>({...p,[k]:e.target.value}))} style={inpStyle}/>
           </div>
         ))}
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:3,fontWeight:600}}>Sexo</div>
+          <select value={info.sexo} onChange={e=>setInfo(p=>({...p,sexo:e.target.value}))} style={inpStyle}>
+            <option value="masculino">Masculino</option>
+            <option value="femenino">Femenino</option>
+          </select>
+        </div>
         <div>
           <div style={{fontSize:11,color:C.muted,marginBottom:3,fontWeight:600}}>Fecha</div>
           <input type="date" value={info.fecha} onChange={e=>setInfo(p=>({...p,fecha:e.target.value}))} style={inpStyle}/>
