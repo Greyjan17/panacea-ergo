@@ -319,7 +319,7 @@ function calcNiosh(s) {
   const CM = s.coup==="good" ? 1 : s.coup==="fair" ? 0.95 : 0.90;
   const RWL = 23 * HM * VM * DM * AM * FM * CM;
   const LI  = RWL > 0.01 ? s.L / RWL : (s.L > 0 ? 999 : 0);
-  const level = LI<=1?0 : LI<=2?1 : LI<=3?2 : LI<=5?3 : 4;
+  const level = LI<=1?0 : LI<=1.5?1 : LI<=2?2 : LI<=3?3 : 4;
   return {HM, VM, DM, AM, FM, CM, RWL:RWL.toFixed(2), LI:LI.toFixed(2), level};
 }
 
@@ -763,7 +763,7 @@ function getConclusiones(ri,reba,rula,owas,niosh,mmc,info) {
   }
   if (ri.RULA) { const a=NORMA.rulaAccion.find(x=>ri.RULA.fin<=x.max)||NORMA.rulaAccion[3]; c.push(`RULA: Score ${ri.RULA.fin} — ${a.nivel} (${a.accion}).`); }
   if (ri.OWAS) c.push(`OWAS: Código ${ri.OWAS.code}, Cat.${ri.OWAS.cat} — ${ri.OWAS.action}.`);
-  if (ri.NIOSH) { const li=parseFloat(ri.NIOSH.LI); c.push(`NIOSH: LI=${ri.NIOSH.LI}, RWL=${ri.NIOSH.RWL}kg — Riesgo ${li<=1?"aceptable":li<=3?"incrementado":"inaceptable"}.`); }
+  if (ri.NIOSH) { const li=parseFloat(ri.NIOSH.LI); c.push(`NIOSH: LI=${ri.NIOSH.LI}, RWL=${ri.NIOSH.RWL}kg — Riesgo ${li<=1?"aceptable":li<=1.5?"moderado":li<=2?"incrementado":li<=3?"significativo":"inaceptable"}.`); }
   if (ri.MMC&&mmc.peso>0) c.push(`MMC: ${mmc.peso}kg — RM375: ${ri.MMC.cumRM?"cumple":"INCUMPLE"} (${ri.MMC.limRM}kg), ISO: ${ri.MMC.cumISO?"cumple":"INCUMPLE"} (${ri.MMC.limISO}kg). ${ri.MMC.nF} factores adicionales.`);
   const tme=[];
   if((ri.REBA&&reba.trunk>=3)||(ri.OWAS&&owas.back>=2))tme.push("lumbalgia/hernia discal lumbar");
