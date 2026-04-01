@@ -624,17 +624,130 @@ function App(){
   const confirmReview=()=>{
     if(!reviewData)return;
     const {method:m, vals} = reviewData;
+
+    // Aplica al método confirmado
+    if(m==="REBA") setReba(p=>({...p,...vals}));
+    else if(m==="RULA") setRula(p=>({...p,...vals}));
+    else if(m==="OWAS") setOwas(p=>({...p,...vals}));
+    else if(m==="NIOSH") setNiosh(p=>({...p,...vals}));
+
+    const has = x => info.metodos.includes(x);
+
+    // ── REBA → propaga a otros ──────────────────────────────────────────
     if(m==="REBA"){
-      setReba(p=>({...p,...vals}));
-      // Propagar inmediatamente a MMC si está activo
-      if(info.metodos.includes("MMC")){
-        propagarREBAaMMC(vals, aiMsg.REBA||"");
+      // REBA → RULA: cuello, tronco, piernas, brazos (segmentos comunes)
+      if(has("RULA")) setRula(p=>({...p,
+        neck:  vals.neck  ?? p.neck,
+        neckT: vals.neckT ?? p.neckT,
+        neckS: vals.neckS ?? p.neckS,
+        trunk: vals.trunk ?? p.trunk,
+        trunkT:vals.trunkT?? p.trunkT,
+        trunkS:vals.trunkS?? p.trunkS,
+        ua:    vals.ua    ?? p.ua,
+        la:    vals.la    ?? p.la,
+        shr:   vals.shr   ?? p.shr,
+        sup:   vals.sup   ?? p.sup,
+        wristT:vals.wristT?? p.wristT,
+      }));
+
+      // REBA → OWAS: tronco→espalda, brazos→brazos, piernas→piernas, carga→carga
+      if(has("OWAS")) setOwas(p=>({...p,
+        back: vals.trunk ? Math.min(vals.trunk, 4) : p.back,
+        arms: vals.ua ? (vals.ua >= 3 ? 2 : 1) : p.arms,  // brazo >45° = uno sobre hombros
+        legs: vals.legs ?? p.legs,
+        load: vals.load !== undefined ? Math.max(1, vals.load) : p.load, // REBA 0→1 en OWAS
+      }));
+
+      // REBA → NIOSH: carga como peso L
+      if(has("NIOSH") && vals.load === 2){
+        // Solo marca que hay carga pesada, el evaluador confirma el valor exacto
+        setNiosh(p=>({...p, coup: vals.coup>=2?"poor":vals.coup===1?"fair":"good"}));
+      }
+
+      // REBA → MMC
+      if(has("MMC")) propagarREBAaMMC(vals, aiMsg.REBA||"");
+    }
+
+    // ── RULA → propaga a otros ──────────────────────────────────────────
+    else if(m==="RULA"){
+      // RULA → REBA: segmentos comunes
+      if(has("REBA")) setReba(p=>({...p,
+        neck:  vals.neck  ?? p.neck,
+        neckT: vals.neckT ?? p.neckT,
+        neckS: vals.neckS ?? p.neckS,
+        trunk: vals.trunk ?? p.trunk,
+        trunkT:vals.trunkT?? p.trunkT,
+        trunkS:vals.trunkS?? p.trunkS,
+        ua:    vals.ua    ?? p.ua,
+        la:    vals.la    ?? p.la,
+        shr:   vals.shr   ?? p.shr,
+        wristT:vals.wristT?? p.wristT,
+      }));
+
+      // RULA → OWAS
+      if(has("OWAS")) setOwas(p=>({...p,
+        back: vals.trunk ? Math.min(vals.trunk, 4) : p.back,
+        arms: vals.ua ? (vals.ua >= 3 ? 2 : 1) : p.arms,
+        legs: vals.legs ?? p.legs,
+      }));
+
+      // RULA → MMC: torsión, frecuencia
+      if(has("MMC")){
+        const f=[];
+        if(vals.trunkT) f.push("asim");
+        if(vals.fA >= 2 || vals.fB >= 2) f.push("agr");
+        if(vals.mA >= 1 || vals.mB >= 1) f.push("freq");
+        if(f.length>0) setMmc(p=>({...p,factores:[...new Set([...p.factores,...f])]}));
       }
     }
-    else if(m==="RULA")setRula(p=>({...p,...vals}));
-    else if(m==="OWAS")setOwas(p=>({...p,...vals}));
-    else if(m==="NIOSH")setNiosh(p=>({...p,...vals}));
-    setFilled(true);setReviewData(null);
+
+    // ── OWAS → propaga a otros ──────────────────────────────────────────
+    else if(m==="OWAS"){
+      // OWAS espalda → tronco REBA/RULA
+      const trunkFromOwas = vals.back ?? null;
+      const legsFromOwas  = vals.legs ?? null;
+      // OWAS brazos: 1=bajo hombros→ua=1-2, 2=uno sobre→ua=3, 3=ambos→ua=4
+      const uaFromOwas = vals.arms===3?4:vals.arms===2?3:2;
+      // OWAS carga: 1→load=0-1, 2→load=1, 3→load=2
+      const loadFromOwas = vals.load===3?2:vals.load===2?1:0;
+
+      if(has("REBA")) setReba(p=>({...p,
+        trunk: trunkFromOwas ?? p.trunk,
+        legs:  legsFromOwas  ?? p.legs,
+        ua:    vals.arms ? uaFromOwas : p.ua,
+        load:  vals.load !== undefined ? loadFromOwas : p.load,
+      }));
+
+      if(has("RULA")) setRula(p=>({...p,
+        trunk: trunkFromOwas ?? p.trunk,
+        legs:  legsFromOwas ? Math.min(legsFromOwas, 2) : p.legs,
+        ua:    vals.arms ? uaFromOwas : p.ua,
+      }));
+
+      // OWAS → MMC
+      if(has("MMC")){
+        const f=[];
+        if(vals.back >= 3) f.push("asim");   // espalda girada = torsión
+        if(vals.arms >= 2) f.push("alt");    // brazos sobre hombros = postura desfavorable
+        if(vals.load === 3) f.push("peso");  // >20kg
+        if(vals.legs <= 1 || vals.legs >= 4) f.push("alt"); // sentado o cuclillas
+        if(f.length>0) setMmc(p=>({...p,factores:[...new Set([...p.factores,...f])]}));
+      }
+    }
+
+    // ── NIOSH → propaga a MMC ───────────────────────────────────────────
+    else if(m==="NIOSH"){
+      if(has("MMC")){
+        const f=[];
+        if(vals.H && vals.H > 50) f.push("dist");
+        if(vals.A && vals.A > 30) f.push("asim");
+        if(vals.V && (vals.V < 30 || vals.V > 150)) f.push("alt");
+        if(f.length>0) setMmc(p=>({...p,factores:[...new Set([...p.factores,...f])]}));
+      }
+    }
+
+    setFilled(true);
+    setReviewData(null);
   };
 
   const getRes=()=>{
