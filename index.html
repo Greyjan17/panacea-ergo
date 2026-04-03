@@ -806,7 +806,7 @@ function App() {
     peso:0, grupo:"Varón adulto (18-45 años)", frec:"frecuente", form:"no", factores:[]
   });
 
-  // Estado IA — ORIGINAL + aiCollapsed (CAMBIO #7)
+  // Estado IA — ORIGINAL + aiCollapsed + aiLog (auditoría)
   const [aiMsg,       setAiMsg]       = useState({});
   const [aiLoad,      setAiLoad]      = useState(false);
   const [activePhoto, setActivePhoto] = useState(null);
@@ -814,7 +814,8 @@ function App() {
   const [filled,      setFilled]      = useState(false);
   const [hallazgos,   setHallazgos]   = useState("");
   const [tareasDesc,  setTareasDesc]  = useState([]);
-  const [aiCollapsed, setAiCollapsed] = useState({}); // CAMBIO #7
+  const [aiCollapsed, setAiCollapsed] = useState({});
+  const [aiLog,       setAiLog]       = useState([]); // CAMBIO #7
 
   const fileRef = useRef();
 
@@ -852,13 +853,17 @@ function App() {
 
   const callWorker = async (photoUrl, m) => {
     const comp = await compress(photoUrl);
+    const ts = new Date().toISOString();
     const r = await fetch(WORKER_URL, {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({imageBase64: comp.split(",")[1], mediaType:"image/jpeg", method:m})
     });
     const d = await r.json();
-    return d.result || d.error || "Sin respuesta.";
+    const result = d.result || d.error || "Sin respuesta.";
+    // Log de auditoría
+    setAiLog(prev => [...prev, {timestamp:ts, method:m, worker:WORKER_URL, responseLength:result.length, response:result}]);
+    return result;
   };
 
   const analyzeOne = async (photoUrl, m) => {
@@ -1319,6 +1324,22 @@ function App() {
       <div className="noprint" style={{marginBottom:14,display:"flex",gap:8}}>
         <OBtn label="🖨 Imprimir / PDF" onClick={() => window.print()}/>
         <OBtn label="← Resultados" onClick={() => setStep(3)} outline/>
+        {aiLog.length > 0 && <OBtn label="📋 Log Auditoría" small outline onClick={() => {
+          const log = {
+            version: "PANACEA ERGO v2.1",
+            generado: new Date().toISOString(),
+            evaluador: info.evaluador,
+            empresa: info.empresa,
+            trabajador: info.trabajador,
+            metodos: info.metodos,
+            analisis: aiLog
+          };
+          const blob = new Blob([JSON.stringify(log, null, 2)], {type:"application/json"});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `log-auditoria-${info.fecha}.json`; a.click();
+          URL.revokeObjectURL(url);
+        }}/>}
       </div>
 
       <div style={{background:"white",maxWidth:800,margin:"0 auto",padding:40,
@@ -1749,24 +1770,59 @@ function App() {
           </div>
         );})()}
 
-        {/* Firma */}
-        <div style={{borderTop:`2px solid ${C.cb}`,paddingTop:20,
-          display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-          <div style={{fontSize:11,color:C.muted}}>
-            <div>Generado con PANACEA ERGO v2.1</div>
-            <div>Normativa: RM 375-2008-TR · ISO 11228-1</div>
-            <div>Documento confidencial — uso médico ocupacional</div>
-          </div>
-          <div style={{textAlign:"center"}}>
-            <div style={{borderTop:`1px solid ${C.text}`,paddingTop:8,width:260}}>
-              <div style={{fontWeight:800,fontSize:14}}>{info.evaluador}</div>
-              <div style={{fontSize:11,color:C.muted}}>Médico Especialista en Medicina Ocupacional</div>
-              <div style={{fontSize:11,color:C.muted}}>y del Medio Ambiente — UPCH</div>
-              <div style={{fontSize:11,color:C.orange,fontWeight:600}}>CMP 102517 · RNE/RNA 13334</div>
-              <div style={{fontSize:11,color:C.muted}}>Panacea Medicina Ocupacional · Arequipa, {info.fecha}</div>
-            </div>
-          </div>
+        {/* Disclaimer legal + Vigencia normativa */}
+        <div style={{marginBottom:20,padding:16,background:"#FEFCE8",border:"1.5px solid #CA8A04",
+          borderRadius:10,fontSize:11,lineHeight:1.8,color:"#713F12"}}>
+          <div style={{fontWeight:700,fontSize:12,marginBottom:6,color:"#854D0E"}}>NOTA LEGAL Y METODOLÓGICA</div>
+          <p>Los valores posturales fueron estimados mediante análisis de imagen asistido por inteligencia artificial
+          y posteriormente validados, ajustados y confirmados por el médico evaluador firmante. La herramienta de IA
+          constituye un instrumento de apoyo técnico; la interpretación clínica, el juicio profesional y la
+          responsabilidad técnico-legal del presente informe recaen exclusivamente en el profesional firmante.</p>
+          <p style={{marginTop:6}}>Marco normativo aplicado: <strong>RM N° 375-2008-TR</strong> (vigente desde
+          28/11/2008, Norma Básica de Ergonomía y de Procedimiento de Evaluación de Riesgo Disergonómico) ·
+          <strong> ISO 11228-1:2003</strong> (Ergonomics — Manual handling — Lifting and carrying).
+          El evaluador es responsable de verificar la vigencia de las normas aplicadas al momento de la evaluación.</p>
+          <p style={{marginTop:6}}>Herramienta: PANACEA ERGO v2.1 · Tablas de cálculo: REBA (Hignett &amp; McAtamney, 2000),
+          RULA (McAtamney &amp; Corlett, 1993), OWAS (Karhu et al., 1977), NIOSH (Waters et al., 1993 revisada).</p>
         </div>
+
+        {/* Firma con timestamp + QR verificación */}
+        {(() => {
+          const qrData = encodeURIComponent(JSON.stringify({
+            app:"PANACEA ERGO v2.1",eval:info.evaluador,emp:info.empresa,
+            trab:info.trabajador,fecha:info.fecha,metodos:info.metodos,
+            reba:ri.REBA?ri.REBA.fin:null,rula:ri.RULA?ri.RULA.fin:null,
+            owas:ri.OWAS?ri.OWAS.code:null,niosh:ri.NIOSH?ri.NIOSH.LI:null,
+            mmc:ri.MMC?mmc.peso+"kg":null
+          }));
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${qrData}`;
+          return (
+            <div style={{borderTop:`2px solid ${C.cb}`,paddingTop:20,
+              display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+              <div style={{display:"flex",gap:12,alignItems:"flex-end"}}>
+                <img src={qrUrl} alt="QR" style={{width:80,height:80,borderRadius:4,border:`1px solid ${C.cb}`}}/>
+                <div style={{fontSize:11,color:C.muted}}>
+                  <div>PANACEA ERGO v2.1</div>
+                  <div>Normativa: RM 375-2008-TR · ISO 11228-1</div>
+                  <div>Documento confidencial — uso médico ocupacional</div>
+                  <div style={{marginTop:6,fontFamily:"monospace",fontSize:10}}>
+                    Generado: {new Date().toISOString().replace("T"," ").substring(0,19)} UTC
+                  </div>
+                  <div style={{fontSize:9,color:C.muted,marginTop:2}}>QR: datos del informe para verificación</div>
+                </div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{borderTop:`1px solid ${C.text}`,paddingTop:8,width:260}}>
+                  <div style={{fontWeight:800,fontSize:14}}>{info.evaluador}</div>
+                  <div style={{fontSize:11,color:C.muted}}>Médico Especialista en Medicina Ocupacional</div>
+                  <div style={{fontSize:11,color:C.muted}}>y del Medio Ambiente — UPCH</div>
+                  <div style={{fontSize:11,color:C.orange,fontWeight:600}}>CMP 102517 · RNE/RNA 13334</div>
+                  <div style={{fontSize:11,color:C.muted}}>Panacea Medicina Ocupacional · Arequipa, {info.fecha}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
