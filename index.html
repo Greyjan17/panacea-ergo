@@ -952,6 +952,29 @@ function drawSkeleton(imgUrl, landmarks) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// Interpretación clínica de ángulos medidos
+function interpretAngles(a) {
+  const findings = [];
+  if (a.trunk > 60)       findings.push({seg:"Tronco",ang:a.trunk,risk:"alto",desc:`Flexión ${a.trunk}° — compromiso biomecánico severo L4-L5/L5-S1. Riesgo de hernia discal lumbar.`});
+  else if (a.trunk > 20)  findings.push({seg:"Tronco",ang:a.trunk,risk:"medio",desc:`Flexión ${a.trunk}° — carga en zona media-distal lumbar. Sobrecarga paravertebral.`});
+  else if (a.trunk > 5)   findings.push({seg:"Tronco",ang:a.trunk,risk:"bajo",desc:`Flexión ${a.trunk}° — postura levemente comprometida.`});
+
+  if (a.neck > 20)        findings.push({seg:"Cuello",ang:a.neck,risk:"medio",desc:`Flexión cervical ${a.neck}° — tensión suboccipital, riesgo de cervicalgia tensional.`});
+  else if (a.neck > 10)   findings.push({seg:"Cuello",ang:a.neck,risk:"bajo",desc:`Flexión cervical ${a.neck}° — posición funcional con leve compromiso.`});
+
+  if (a.ua > 90)          findings.push({seg:"Brazo sup.",ang:a.ua,risk:"alto",desc:`Elevación ${a.ua}° — abducción extrema, riesgo elevado de síndrome del manguito rotador.`});
+  else if (a.ua > 45)     findings.push({seg:"Brazo sup.",ang:a.ua,risk:"medio",desc:`Elevación ${a.ua}° — sobrecarga del manguito rotador y tendón supraespinoso.`});
+
+  if (a.la < 60 || a.la > 100) findings.push({seg:"Brazo inf.",ang:a.la,risk:"medio",desc:`Ángulo ${a.la}° fuera del rango funcional 60-100° — tensión en tendón bicipital.`});
+
+  if (a.wrist > 15)       findings.push({seg:"Muñeca",ang:a.wrist,risk:"medio",desc:`Desviación ${a.wrist}° — riesgo de síndrome del túnel carpiano.`});
+
+  if (a.knee < 120)       findings.push({seg:"Rodillas",ang:a.knee,risk:"alto",desc:`Flexión ${180-a.knee}° (ángulo ${a.knee}°) — sobrecarga patelofemoral bilateral severa.`});
+  else if (a.knee < 150)  findings.push({seg:"Rodillas",ang:a.knee,risk:"medio",desc:`Flexión ${180-a.knee}° (ángulo ${a.knee}°) — semisquatting, sobrecarga patelofemoral.`});
+
+  return findings;
+}
+
 // APP PRINCIPAL — ESTRUCTURA ORIGINAL CON CAMBIOS MÍNIMOS MARCADOS
 // ══════════════════════════════════════════════════════════════════════════
 function App() {
@@ -992,8 +1015,9 @@ function App() {
   const [tareasDesc,  setTareasDesc]  = useState([]);
   const [aiCollapsed, setAiCollapsed] = useState({});
   const [aiLog,       setAiLog]       = useState([]);
-  const [poseData,    setPoseData]    = useState(null); // {angles, mapped, skeletonUrl, photoIdx}
+  const [poseData,    setPoseData]    = useState(null);
   const [poseLoading, setPoseLoading] = useState(false);
+  const [dataSource,  setDataSource]  = useState("ia"); // "ia" | "mediapipe" | "manual"
 
   const fileRef = useRef();
 
@@ -1146,58 +1170,85 @@ function App() {
     setReviewData(null);
   };
 
-  // Análisis de pose con MediaPipe
-  const analyzePose = async (photoIdx) => {
-    if (!photos[photoIdx] || typeof window.Pose === "undefined") {
-      alert(typeof window.Pose === "undefined"
-        ? "MediaPipe Pose no está disponible. Verifique su conexión a internet."
-        : "No hay foto seleccionada.");
+  // Análisis de pose con MediaPipe — foto individual
+  const analyzePoseSingle = async (photoIdx) => {
+    if (!photos[photoIdx] || typeof window.Pose === "undefined") return null;
+    const pose = new window.Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
+    });
+    pose.setOptions({ modelComplexity:2, smoothLandmarks:true, enableSegmentation:false,
+      minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+    const result = await new Promise((resolve, reject) => {
+      pose.onResults(r => resolve(r));
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        try { await pose.send({image: canvas}); } catch(e) { reject(e); }
+      };
+      img.onerror = () => reject(new Error("Error cargando imagen"));
+      img.src = photos[photoIdx].url;
+      setTimeout(() => reject(new Error("Timeout")), 30000);
+    });
+    pose.close();
+    if (!result.poseLandmarks || result.poseLandmarks.length < 33) return null;
+    const angles = calcPoseAngles(result.poseLandmarks);
+    const skeleton = await drawSkeleton(photos[photoIdx].url, result.poseLandmarks);
+    return {angles, skeleton, label: photos[photoIdx].label, idx: photoIdx};
+  };
+
+  // Análisis integral: todas las fotos
+  const analyzePoseAll = async () => {
+    if (!photos.length || typeof window.Pose === "undefined") {
+      alert("MediaPipe Pose no disponible o no hay fotos.");
       return;
     }
     setPoseLoading(true);
     try {
-      const pose = new window.Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
-      });
-      pose.setOptions({
-        modelComplexity: 2, // máxima precisión
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-
-      const result = await new Promise((resolve, reject) => {
-        pose.onResults(r => resolve(r));
-        // Cargar imagen y enviar a MediaPipe
-        const img = new Image();
-        img.onload = async () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width; canvas.height = img.height;
-          canvas.getContext("2d").drawImage(img, 0, 0);
-          try { await pose.send({image: canvas}); }
-          catch(e) { reject(e); }
-        };
-        img.onerror = () => reject(new Error("No se pudo cargar la imagen"));
-        img.src = photos[photoIdx].url;
-        setTimeout(() => reject(new Error("Timeout de MediaPipe")), 30000);
-      });
-
-      if (!result.poseLandmarks || result.poseLandmarks.length < 33) {
-        alert("No se detectó una persona completa en la imagen. Intente con otra foto.");
-        setPoseLoading(false);
-        return;
+      const results = [];
+      for (let i = 0; i < photos.length; i++) {
+        try {
+          const r = await analyzePoseSingle(i);
+          if (r) results.push(r);
+        } catch(e) { /* foto sin detección, skip */ }
       }
-
-      const angles = calcPoseAngles(result.poseLandmarks);
-      const mappedREBA = mapAnglesToREBA(angles);
-      const mappedRULA = mapAnglesToRULA(angles);
-      const skeletonUrl = await drawSkeleton(photos[photoIdx].url, result.poseLandmarks);
-
-      setPoseData({angles, mappedREBA, mappedRULA, skeletonUrl, photoIdx, photoLabel: photos[photoIdx].label});
-      pose.close();
+      if (!results.length) {
+        alert("No se detectó persona en ninguna foto.");
+        setPoseLoading(false); return;
+      }
+      // Consolidar: peor ángulo por segmento
+      const worst = {trunk:0,neck:0,ua:0,la:0,wrist:0,knee:180,kneeL:180,kneeR:180,uaL:0,uaR:0};
+      for (const r of results) {
+        worst.trunk = Math.max(worst.trunk, r.angles.trunk);
+        worst.neck  = Math.max(worst.neck, r.angles.neck);
+        worst.ua    = Math.max(worst.ua, r.angles.ua);
+        worst.uaL   = Math.max(worst.uaL, r.angles.uaL);
+        worst.uaR   = Math.max(worst.uaR, r.angles.uaR);
+        worst.la    = Math.max(worst.la, r.angles.la);
+        worst.wrist = Math.max(worst.wrist, r.angles.wrist);
+        worst.knee  = Math.min(worst.knee, r.angles.knee); // menor = más flexión
+        worst.kneeL = Math.min(worst.kneeL, r.angles.kneeL);
+        worst.kneeR = Math.min(worst.kneeR, r.angles.kneeR);
+      }
+      const mappedREBA = mapAnglesToREBA(worst);
+      const mappedRULA = mapAnglesToRULA(worst);
+      // Foto con peor postura global (mayor score REBA estimado)
+      let worstIdx = 0, worstScore = 0;
+      results.forEach((r,i) => {
+        const m = mapAnglesToREBA(r.angles);
+        const sc = m.trunk + m.neck + m.ua + m.la + m.wrist + m.legs;
+        if (sc > worstScore) { worstScore = sc; worstIdx = i; }
+      });
+      setPoseData({
+        angles: worst, mappedREBA, mappedRULA,
+        skeletonUrl: results[worstIdx].skeleton,
+        photoLabel: results[worstIdx].label + " (peor postura)",
+        allResults: results,
+        photosAnalyzed: results.length
+      });
     } catch(e) {
-      alert("Error en análisis de pose: " + (e.message || "intente de nuevo"));
+      alert("Error: " + (e.message || "intente de nuevo"));
     }
     setPoseLoading(false);
   };
@@ -1499,94 +1550,150 @@ function App() {
       {/* Panel de Medición Angular — MediaPipe Pose */}
       {photos.length > 0 && (method==="REBA" || method==="RULA") && (
         <Card title="📐 Medición Angular Objetiva (MediaPipe Pose)">
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-            {photos.map((p,i) => (
-              <div key={i} onClick={() => !poseLoading && analyzePose(i)}
-                style={{cursor:poseLoading?"not-allowed":"pointer",borderRadius:8,overflow:"hidden",
-                  border:`3px solid ${poseData?.photoIdx===i?"#22C55E":C.cb}`,opacity:poseLoading?0.6:1}}>
-                <img src={p.url} alt="" style={{width:60,height:60,objectFit:"cover",display:"block"}}/>
-                <div style={{fontSize:9,textAlign:"center",padding:"2px 0",
-                  background:poseData?.photoIdx===i?"#22C55E":C.cb,
-                  color:poseData?.photoIdx===i?"white":C.muted,fontWeight:700}}>{p.label}</div>
-              </div>
-            ))}
-          </div>
-          <button onClick={() => analyzePose(activePhoto||0)} disabled={poseLoading}
+          <button onClick={analyzePoseAll} disabled={poseLoading}
             style={{width:"100%",padding:"12px",marginBottom:12,
-              background:poseLoading?C.muted:`linear-gradient(135deg,#059669,#10B981)`,
+              background:poseLoading?C.muted:"linear-gradient(135deg,#059669,#10B981)",
               color:"white",border:"none",borderRadius:10,cursor:poseLoading?"not-allowed":"pointer",
               fontWeight:700,fontSize:14,boxShadow:poseLoading?"none":"0 3px 10px rgba(5,150,105,0.35)"}}>
-            {poseLoading ? "⏳ Detectando landmarks..." : "📐 Medir ángulos con MediaPipe Pose"}
+            {poseLoading ? "⏳ Analizando landmarks en todas las fotos..." : `📐 Medir ángulos en todas las fotos (${photos.length})`}
           </button>
-          <div style={{fontSize:11,color:C.muted,marginBottom:8}}>
-            Selecciona una foto y haz clic para detectar puntos articulares y calcular ángulos reales.
-          </div>
 
-          {poseData && (
-            <div style={{borderRadius:12,overflow:"hidden",border:`2px solid #059669`}}>
-              <div style={{background:"linear-gradient(135deg,#065F46,#059669)",
-                color:"white",padding:"10px 16px",fontWeight:700,fontSize:13}}>
-                📐 Resultados — {poseData.photoLabel}
-              </div>
-              <div style={{padding:14}}>
-                {/* Imagen con esqueleto */}
-                <div style={{textAlign:"center",marginBottom:12}}>
-                  <img src={poseData.skeletonUrl} alt="Esqueleto"
-                    style={{maxWidth:"100%",maxHeight:300,borderRadius:8,border:`1px solid ${C.cb}`}}/>
+          {poseData && (() => {
+            const findings = interpretAngles(poseData.angles);
+            const critical = findings.filter(f => f.risk==="alto" || f.risk==="medio");
+            return (
+              <div style={{borderRadius:12,overflow:"hidden",border:"2px solid #059669"}}>
+                <div style={{background:"linear-gradient(135deg,#065F46,#059669)",
+                  color:"white",padding:"10px 16px",fontWeight:700,fontSize:13}}>
+                  📐 Resultado integral — {poseData.photosAnalyzed} fotos analizadas · {poseData.photoLabel}
                 </div>
-                {/* Tabla de ángulos medidos */}
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:12}}>
-                  <thead><tr style={{background:"#059669",color:"white"}}>
-                    <th style={{padding:"6px 10px",textAlign:"left"}}>Segmento</th>
-                    <th style={{padding:"6px 10px",textAlign:"center"}}>Ángulo medido</th>
-                    <th style={{padding:"6px 10px",textAlign:"center"}}>Nivel {method}</th>
-                    <th style={{padding:"6px 10px",textAlign:"left"}}>Criterio</th>
-                  </tr></thead>
-                  <tbody>
-                    {[
-                      ["Tronco", `${poseData.angles.trunk}°`,
-                        method==="REBA"?poseData.mappedREBA.trunk:poseData.mappedRULA.trunk,
-                        poseData.angles.trunk<=5?"Erecto":poseData.angles.trunk<=20?"0-20°":poseData.angles.trunk<=60?"20-60°":">60°"],
-                      ["Cuello", `${poseData.angles.neck}°`,
-                        method==="REBA"?poseData.mappedREBA.neck:poseData.mappedRULA.neck,
-                        poseData.angles.neck<=10?"0-10°":poseData.angles.neck<=20?"10-20°":">20°"],
-                      ["Brazo superior", `${poseData.angles.ua}° (I:${poseData.angles.uaL}° D:${poseData.angles.uaR}°)`,
-                        method==="REBA"?poseData.mappedREBA.ua:poseData.mappedRULA.ua,
-                        poseData.angles.ua<=20?"-20/20°":poseData.angles.ua<=45?"20-45°":poseData.angles.ua<=90?"45-90°":">90°"],
-                      ["Brazo inferior", `${poseData.angles.la}°`,
-                        method==="REBA"?poseData.mappedREBA.la:poseData.mappedRULA.la,
-                        poseData.angles.la>=60&&poseData.angles.la<=100?"60-100°":"Fuera rango"],
-                      ["Muñeca", `${poseData.angles.wrist}°`,
-                        method==="REBA"?poseData.mappedREBA.wrist:poseData.mappedRULA.wrist,
-                        poseData.angles.wrist<=15?"0-15°":">15°"],
-                      ["Rodillas", `${poseData.angles.knee}° (I:${poseData.angles.kneeL}° D:${poseData.angles.kneeR}°)`,
-                        poseData.mappedREBA.legs,
-                        poseData.angles.knee>=150?"Extendidas":poseData.angles.knee>=120?"Flex 30-60°":"Flex >60°"],
-                    ].map(([seg,ang,niv,crit],i) => (
-                      <tr key={i} style={{background:i%2===0?C.bg:"white",borderBottom:`1px solid ${C.cb}`}}>
-                        <td style={{padding:"5px 10px",fontWeight:600}}>{seg}</td>
-                        <td style={{padding:"5px 10px",textAlign:"center",fontWeight:700,color:"#059669"}}>{ang}</td>
-                        <td style={{padding:"5px 10px",textAlign:"center",fontWeight:700,color:C.orange}}>{niv}</td>
-                        <td style={{padding:"5px 10px",color:C.muted}}>{crit}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {/* Botón para aplicar valores al formulario */}
-                <button onClick={() => {
-                  const m = method==="REBA" ? poseData.mappedREBA : poseData.mappedRULA;
-                  if (method==="REBA") setReba(p => ({...p, trunk:m.trunk, neck:m.neck, ua:m.ua, la:m.la, wrist:m.wrist, legs:m.legs}));
-                  if (method==="RULA") setRula(p => ({...p, trunk:m.trunk, neck:m.neck, ua:m.ua, la:m.la, wrist:m.wrist}));
-                }} style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,#065F46,#059669)`,
-                  color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>
-                  ✅ Aplicar ángulos medidos al formulario {method}
-                </button>
-                <div style={{fontSize:10,color:C.muted,marginTop:6,textAlign:"center"}}>
-                  Precisión estimada: ±3-5° · MediaPipe Pose Complexity 2 · Los valores son editables después de aplicar
+                <div style={{padding:14}}>
+                  {/* Imagen esqueleto */}
+                  <div style={{textAlign:"center",marginBottom:12}}>
+                    <img src={poseData.skeletonUrl} alt="Skeleton"
+                      style={{maxWidth:"100%",maxHeight:280,borderRadius:8,border:`1px solid ${C.cb}`}}/>
+                  </div>
+
+                  {/* Tabla de ángulos + mapeo */}
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:12}}>
+                    <thead><tr style={{background:"#059669",color:"white"}}>
+                      <th style={{padding:"5px 8px",textAlign:"left"}}>Segmento</th>
+                      <th style={{padding:"5px 8px",textAlign:"center"}}>Ángulo</th>
+                      <th style={{padding:"5px 8px",textAlign:"center"}}>{method}</th>
+                      <th style={{padding:"5px 8px",textAlign:"left"}}>Criterio</th>
+                    </tr></thead><tbody>
+                      {[["Tronco",poseData.angles.trunk, method==="REBA"?poseData.mappedREBA.trunk:poseData.mappedRULA.trunk,
+                          poseData.angles.trunk<=5?"Erecto":poseData.angles.trunk<=20?"0-20°":poseData.angles.trunk<=60?"20-60°":">60°"],
+                        ["Cuello",poseData.angles.neck, method==="REBA"?poseData.mappedREBA.neck:poseData.mappedRULA.neck,
+                          poseData.angles.neck<=10?"0-10°":poseData.angles.neck<=20?"10-20°":">20°"],
+                        ["Brazo sup.",`${poseData.angles.ua} (I:${poseData.angles.uaL} D:${poseData.angles.uaR})`,
+                          method==="REBA"?poseData.mappedREBA.ua:poseData.mappedRULA.ua,
+                          poseData.angles.ua<=20?"-20/20°":poseData.angles.ua<=45?"20-45°":poseData.angles.ua<=90?"45-90°":">90°"],
+                        ["Brazo inf.",poseData.angles.la, method==="REBA"?poseData.mappedREBA.la:poseData.mappedRULA.la,
+                          poseData.angles.la>=60&&poseData.angles.la<=100?"60-100°":"Fuera rango"],
+                        ["Muñeca",poseData.angles.wrist, method==="REBA"?poseData.mappedREBA.wrist:poseData.mappedRULA.wrist,
+                          poseData.angles.wrist<=15?"0-15°":">15°"],
+                        ["Rodillas",`${poseData.angles.knee} (I:${poseData.angles.kneeL} D:${poseData.angles.kneeR})`,
+                          poseData.mappedREBA.legs,
+                          poseData.angles.knee>=150?"Extendidas":poseData.angles.knee>=120?"Flex 30-60°":"Flex >60°"]
+                      ].map(([s,a,n,cr],i) => (
+                        <tr key={i} style={{background:i%2===0?C.bg:"white",borderBottom:`1px solid ${C.cb}`}}>
+                          <td style={{padding:"5px 8px",fontWeight:600}}>{s}</td>
+                          <td style={{padding:"5px 8px",textAlign:"center",fontWeight:700,color:"#059669"}}>{typeof a==="number"?a+"°":a+"°"}</td>
+                          <td style={{padding:"5px 8px",textAlign:"center",fontWeight:700,color:C.orange}}>{n}</td>
+                          <td style={{padding:"5px 8px",color:C.muted}}>{cr}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Interpretación clínica */}
+                  {critical.length > 0 && (
+                    <div style={{background:"#FEF2F2",border:"1.5px solid #EF4444",borderRadius:10,padding:12,marginBottom:12}}>
+                      <div style={{fontWeight:700,fontSize:12,color:"#991B1B",marginBottom:6}}>Hallazgos clínicos por medición angular:</div>
+                      {critical.map((f,i) => (
+                        <div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:4,fontSize:12}}>
+                          <span style={{background:f.risk==="alto"?"#EF4444":"#F97316",color:"white",
+                            padding:"1px 8px",borderRadius:12,fontWeight:700,fontSize:10,flexShrink:0,marginTop:2}}>
+                            {f.risk==="alto"?"ALTO":"MEDIO"}
+                          </span>
+                          <span style={{color:C.text}}><strong>{f.seg}:</strong> {f.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Comparativa IA vs MediaPipe */}
+                  {reviewData && (
+                    <div style={{background:"#F0F9FF",border:"1.5px solid #3B82F6",borderRadius:10,padding:12,marginBottom:12}}>
+                      <div style={{fontWeight:700,fontSize:12,color:"#1E40AF",marginBottom:6}}>Comparativa: IA vs MediaPipe</div>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                        <thead><tr style={{background:"#3B82F6",color:"white"}}>
+                          <th style={{padding:"4px 8px",textAlign:"left"}}>Segmento</th>
+                          <th style={{padding:"4px 8px",textAlign:"center"}}>IA</th>
+                          <th style={{padding:"4px 8px",textAlign:"center"}}>MediaPipe</th>
+                          <th style={{padding:"4px 8px",textAlign:"center"}}>Δ</th>
+                        </tr></thead><tbody>
+                          {[["Tronco","trunk"],["Cuello","neck"],["Brazo sup.","ua"],["Brazo inf.","la"],["Muñeca","wrist"],["Piernas","legs"]].map(([s,k],i) => {
+                            const ia = reviewData.vals[k];
+                            const mp = method==="REBA"?poseData.mappedREBA[k]:poseData.mappedRULA[k];
+                            const diff = ia!==undefined && mp!==undefined ? mp-ia : null;
+                            return (
+                              <tr key={i} style={{borderBottom:`1px solid ${C.cb}`,background:diff&&diff!==0?"#FFF7ED":"white"}}>
+                                <td style={{padding:"3px 8px",fontWeight:600}}>{s}</td>
+                                <td style={{padding:"3px 8px",textAlign:"center"}}>{ia!==undefined?ia:"—"}</td>
+                                <td style={{padding:"3px 8px",textAlign:"center",fontWeight:700,color:"#059669"}}>{mp!==undefined?mp:"—"}</td>
+                                <td style={{padding:"3px 8px",textAlign:"center",fontWeight:700,
+                                  color:diff>0?"#EF4444":diff<0?"#22C55E":C.muted}}>{diff!==null?(diff>0?"+":"")+diff:"—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Selector de fuente */}
+                  <div style={{background:C.bg,borderRadius:10,padding:12,marginBottom:12}}>
+                    <div style={{fontWeight:700,fontSize:12,color:C.orange,marginBottom:8}}>
+                      Fuente de datos para el formulario {method}:
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      {[["ia","🤖 IA (Worker)"],["mediapipe","📐 MediaPipe"],["manual","✋ Manual"]].map(([v,l]) => (
+                        <button key={v} onClick={() => setDataSource(v)} style={{
+                          flex:1,padding:"8px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",
+                          background:dataSource===v?v==="mediapipe"?"#059669":v==="ia"?C.orange:"#6B7280":"white",
+                          color:dataSource===v?"white":C.mid,
+                          border:`2px solid ${dataSource===v?"transparent":C.cb}`
+                        }}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Botón aplicar según fuente seleccionada */}
+                  {dataSource !== "manual" && (
+                    <button onClick={() => {
+                      if (dataSource === "mediapipe") {
+                        const m = method==="REBA"?poseData.mappedREBA:poseData.mappedRULA;
+                        if (method==="REBA") setReba(p=>({...p,trunk:m.trunk,neck:m.neck,ua:m.ua,la:m.la,wrist:m.wrist,legs:m.legs}));
+                        if (method==="RULA") setRula(p=>({...p,trunk:m.trunk,neck:m.neck,ua:m.ua,la:m.la,wrist:m.wrist}));
+                        setFilled(true);
+                      } else if (dataSource === "ia" && reviewData) {
+                        confirmReview();
+                      }
+                    }} style={{width:"100%",padding:"10px",
+                      background:dataSource==="mediapipe"?"linear-gradient(135deg,#065F46,#059669)":`linear-gradient(135deg,${C.header},${C.orange})`,
+                      color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                      ✅ Aplicar datos de {dataSource==="mediapipe"?"MediaPipe (ángulos medidos)":"IA (Worker)"} al formulario
+                    </button>
+                  )}
+                  <div style={{fontSize:10,color:C.muted,marginTop:6,textAlign:"center"}}>
+                    MediaPipe Pose · BlazePose GHUM 3D · Complexity 2 · Precisión ±3-5°
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </Card>
       )}
 
@@ -2099,54 +2206,86 @@ function App() {
         );})()}
 
         {/* Anexo: Medición Angular Objetiva — solo si se ejecutó pose estimation */}
-        {poseData && (
-          <div style={{marginBottom:20}}>
-            <div style={{fontWeight:700,color:"#059669",fontSize:14,marginBottom:10,
-              borderBottom:"2px solid #059669",paddingBottom:4}}>
-              Anexo: Medición Angular Objetiva (MediaPipe Pose)
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:12}}>
-              <div>
-                <img src={poseData.skeletonUrl} alt="Landmarks"
-                  style={{width:"100%",borderRadius:8,border:`1px solid ${C.cb}`}}/>
-                <div style={{fontSize:10,color:C.muted,textAlign:"center",marginTop:4}}>
-                  Foto: {poseData.photoLabel} · 33 landmarks detectados
+        {poseData && (() => {
+          const findings = interpretAngles(poseData.angles);
+          const critical = findings.filter(f => f.risk==="alto" || f.risk==="medio");
+          return (
+            <div style={{marginBottom:20}}>
+              <div style={{fontWeight:700,color:"#059669",fontSize:14,marginBottom:10,
+                borderBottom:"2px solid #059669",paddingBottom:4}}>
+                Anexo: Medición Angular Objetiva (MediaPipe Pose)
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:12}}>
+                <div>
+                  <img src={poseData.skeletonUrl} alt="Landmarks"
+                    style={{width:"100%",borderRadius:8,border:`1px solid ${C.cb}`}}/>
+                  <div style={{fontSize:10,color:C.muted,textAlign:"center",marginTop:4}}>
+                    {poseData.photoLabel} · {poseData.photosAnalyzed} foto(s) · 33 landmarks
+                  </div>
+                </div>
+                <div>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                    <thead><tr style={{background:"#059669",color:"white"}}>
+                      <th style={{padding:"5px 8px",textAlign:"left"}}>Segmento</th>
+                      <th style={{padding:"5px 8px",textAlign:"center"}}>Ángulo</th>
+                      <th style={{padding:"5px 8px",textAlign:"center"}}>REBA</th>
+                      <th style={{padding:"5px 8px",textAlign:"center"}}>RULA</th>
+                    </tr></thead>
+                    <tbody>
+                      {[["Tronco",poseData.angles.trunk,poseData.mappedREBA.trunk,poseData.mappedRULA.trunk],
+                        ["Cuello",poseData.angles.neck,poseData.mappedREBA.neck,poseData.mappedRULA.neck],
+                        ["Brazo sup.",poseData.angles.ua,poseData.mappedREBA.ua,poseData.mappedRULA.ua],
+                        ["Brazo inf.",poseData.angles.la,poseData.mappedREBA.la,poseData.mappedRULA.la],
+                        ["Muñeca",poseData.angles.wrist,poseData.mappedREBA.wrist,poseData.mappedRULA.wrist],
+                        ["Rodillas",poseData.angles.knee,poseData.mappedREBA.legs,"—"]
+                      ].map(([s,a,r,u],i) => (
+                        <tr key={i} style={{borderBottom:`1px solid ${C.cb}`,
+                          background: findings.find(f=>f.seg===s&&f.risk==="alto") ? "#FEE2E2"
+                            : findings.find(f=>f.seg===s&&f.risk==="medio") ? "#FFF7ED"
+                            : i%2===0?C.bg:"white"}}>
+                          <td style={{padding:"4px 8px",fontWeight:600}}>{s}</td>
+                          <td style={{padding:"4px 8px",textAlign:"center",fontWeight:700,color:"#059669"}}>{a}°</td>
+                          <td style={{padding:"4px 8px",textAlign:"center",color:C.orange}}>{r}</td>
+                          <td style={{padding:"4px 8px",textAlign:"center",color:C.orange}}>{u}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                  <thead><tr style={{background:"#059669",color:"white"}}>
-                    <th style={{padding:"5px 8px",textAlign:"left"}}>Segmento</th>
-                    <th style={{padding:"5px 8px",textAlign:"center"}}>Ángulo</th>
-                    <th style={{padding:"5px 8px",textAlign:"center"}}>REBA</th>
-                    <th style={{padding:"5px 8px",textAlign:"center"}}>RULA</th>
-                  </tr></thead>
-                  <tbody>
-                    {[["Tronco",poseData.angles.trunk,poseData.mappedREBA.trunk,poseData.mappedRULA.trunk],
-                      ["Cuello",poseData.angles.neck,poseData.mappedREBA.neck,poseData.mappedRULA.neck],
-                      ["Brazo sup.",poseData.angles.ua,poseData.mappedREBA.ua,poseData.mappedRULA.ua],
-                      ["Brazo inf.",poseData.angles.la,poseData.mappedREBA.la,poseData.mappedRULA.la],
-                      ["Muñeca",poseData.angles.wrist,poseData.mappedREBA.wrist,poseData.mappedRULA.wrist],
-                      ["Rodillas",poseData.angles.knee,poseData.mappedREBA.legs,"—"]
-                    ].map(([s,a,r,u],i) => (
-                      <tr key={i} style={{borderBottom:`1px solid ${C.cb}`,background:i%2===0?C.bg:"white"}}>
-                        <td style={{padding:"4px 8px",fontWeight:600}}>{s}</td>
-                        <td style={{padding:"4px 8px",textAlign:"center",fontWeight:700,color:"#059669"}}>{a}°</td>
-                        <td style={{padding:"4px 8px",textAlign:"center",color:C.orange}}>{r}</td>
-                        <td style={{padding:"4px 8px",textAlign:"center",color:C.orange}}>{u}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.6}}>
-                  <strong>Metodología:</strong> Detección de 33 landmarks articulares mediante MediaPipe Pose
-                  (Google, modelo BlazePose GHUM 3D, complexity 2). Ángulos calculados por trigonometría
-                  vectorial (arctan2) entre segmentos corporales. Precisión reportada: ±3-5° en condiciones controladas.
+
+              {/* Hallazgos clínicos críticos */}
+              {critical.length > 0 && (
+                <div style={{background:"#FEF2F2",border:"1.5px solid #EF4444",borderRadius:10,
+                  padding:14,marginBottom:12,fontSize:12,lineHeight:1.8}}>
+                  <div style={{fontWeight:700,color:"#991B1B",marginBottom:8,fontSize:13}}>
+                    Hallazgos clínicos por medición angular objetiva:
+                  </div>
+                  {critical.map((f,i) => (
+                    <div key={i} style={{marginBottom:6}}>
+                      <span style={{display:"inline-block",background:f.risk==="alto"?"#EF4444":"#F97316",
+                        color:"white",padding:"1px 10px",borderRadius:12,fontWeight:700,fontSize:10,marginRight:8}}>
+                        {f.risk.toUpperCase()}
+                      </span>
+                      <strong>{f.seg} ({f.ang}°):</strong> {f.desc}
+                    </div>
+                  ))}
                 </div>
+              )}
+
+              {/* Nota metodológica + fuente usada */}
+              <div style={{fontSize:10,color:C.muted,lineHeight:1.6,padding:"8px 12px",
+                background:C.bg,borderRadius:8}}>
+                <strong>Metodología:</strong> Detección de 33 landmarks articulares mediante MediaPipe Pose
+                (Google, BlazePose GHUM 3D, complexity 2). Ángulos calculados por trigonometría vectorial.
+                Precisión reportada: ±3-5°. Se reportan los ángulos más desfavorables de {poseData.photosAnalyzed} foto(s) analizadas.
+                <br/><strong>Fuente de datos del informe:</strong> {dataSource==="mediapipe"?"MediaPipe Pose (medición objetiva)":
+                  dataSource==="ia"?"IA de visión (estimación asistida)":"Valoración manual del evaluador"}.
+                La medición angular es evidencia complementaria independiente de la fuente seleccionada para el formulario.
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Disclaimer legal + Vigencia normativa */}
         <div style={{marginBottom:20,padding:16,background:"#FEFCE8",border:"1.5px solid #CA8A04",
