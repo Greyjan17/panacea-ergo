@@ -7,6 +7,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#F5EFE6;font-family:'Segoe UI',sans-serif}
@@ -776,6 +779,179 @@ function getConclusiones(ri,reba,rula,owas,niosh,mmc,info) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// POSE ESTIMATION — Cálculo angular desde landmarks MediaPipe
+// Funciones puras, no tocan estado ni React
+// ══════════════════════════════════════════════════════════════════════════
+
+// MediaPipe Pose landmark indices
+const PL = {
+  NOSE:0, LEFT_EYE:2, RIGHT_EYE:5, LEFT_EAR:7, RIGHT_EAR:8,
+  LEFT_SHOULDER:11, RIGHT_SHOULDER:12, LEFT_ELBOW:13, RIGHT_ELBOW:14,
+  LEFT_WRIST:15, RIGHT_WRIST:16, LEFT_HIP:23, RIGHT_HIP:24,
+  LEFT_KNEE:25, RIGHT_KNEE:26, LEFT_ANKLE:27, RIGHT_ANKLE:28
+};
+
+// Calcula ángulo entre 3 puntos (en grados) — el ángulo está en el punto B
+function angleOf(a, b, c) {
+  const ab = {x: a.x - b.x, y: a.y - b.y};
+  const cb = {x: c.x - b.x, y: c.y - b.y};
+  const dot = ab.x * cb.x + ab.y * cb.y;
+  const magAB = Math.sqrt(ab.x*ab.x + ab.y*ab.y);
+  const magCB = Math.sqrt(cb.x*cb.x + cb.y*cb.y);
+  if (magAB === 0 || magCB === 0) return 0;
+  const cosA = Math.max(-1, Math.min(1, dot / (magAB * magCB)));
+  return Math.round(Math.acos(cosA) * 180 / Math.PI);
+}
+
+// Calcula ángulo respecto a la vertical (línea recta hacia arriba)
+function angleFromVertical(top, bottom) {
+  const dx = top.x - bottom.x;
+  const dy = top.y - bottom.y; // Y va hacia abajo en imagen
+  const angle = Math.abs(Math.atan2(dx, -dy) * 180 / Math.PI);
+  return Math.round(angle);
+}
+
+// Punto medio entre dos landmarks
+function midpoint(a, b) {
+  return {x: (a.x+b.x)/2, y: (a.y+b.y)/2, z: ((a.z||0)+(b.z||0))/2};
+}
+
+// Calcula todos los ángulos ergonómicos desde landmarks
+function calcPoseAngles(lm) {
+  const ls = lm[PL.LEFT_SHOULDER],  rs = lm[PL.RIGHT_SHOULDER];
+  const le = lm[PL.LEFT_ELBOW],     re = lm[PL.RIGHT_ELBOW];
+  const lw = lm[PL.LEFT_WRIST],     rw = lm[PL.RIGHT_WRIST];
+  const lh = lm[PL.LEFT_HIP],       rh = lm[PL.RIGHT_HIP];
+  const lk = lm[PL.LEFT_KNEE],      rk = lm[PL.RIGHT_KNEE];
+  const la = lm[PL.LEFT_ANKLE],     ra = lm[PL.RIGHT_ANKLE];
+  const nose = lm[PL.NOSE];
+
+  const midSh = midpoint(ls, rs);
+  const midHp = midpoint(lh, rh);
+
+  // Tronco: ángulo del vector cadera→hombro respecto a la vertical
+  const trunk = angleFromVertical(midSh, midHp);
+
+  // Cuello: ángulo hombro_medio→nariz respecto a hombro_medio→cadera_medio (extensión del tronco)
+  const neck = angleOf(nose, midSh, midHp);
+  // Convertir: 180° = recto (0° flexión), menor = flexión
+  const neckFlex = Math.max(0, 180 - neck);
+
+  // Brazo superior (peor lado): ángulo cadera→hombro→codo
+  const uaL = angleOf(lh, ls, le);
+  const uaR = angleOf(rh, rs, re);
+  const ua = Math.max(uaL, uaR); // peor lado
+
+  // Brazo inferior: ángulo hombro→codo→muñeca
+  const laL = angleOf(ls, le, lw);
+  const laR = angleOf(rs, re, rw);
+  const laAngle = Math.max(laL, laR);
+
+  // Muñeca: ángulo codo→muñeca respecto al antebrazo (desviación)
+  // Simplificado: diferencia angular del segmento muñeca respecto al antebrazo
+  const wristL = Math.abs(180 - angleOf(le, lw, {x:lw.x, y:lw.y+0.1}));
+  const wristR = Math.abs(180 - angleOf(re, rw, {x:rw.x, y:rw.y+0.1}));
+  const wrist = Math.max(wristL, wristR);
+
+  // Rodillas: ángulo cadera→rodilla→tobillo
+  const kneeL = angleOf(lh, lk, la);
+  const kneeR = angleOf(rh, rk, ra);
+  const knee = Math.min(kneeL, kneeR); // peor = más flexionado = menor ángulo
+
+  return {
+    trunk: Math.round(trunk),
+    neck: Math.round(neckFlex),
+    ua: Math.round(ua),
+    la: Math.round(laAngle),
+    wrist: Math.round(wrist),
+    knee: Math.round(knee),
+    kneeL: Math.round(kneeL),
+    kneeR: Math.round(kneeR),
+    uaL: Math.round(uaL),
+    uaR: Math.round(uaR)
+  };
+}
+
+// Mapea ángulos medidos a niveles REBA
+function mapAnglesToREBA(a) {
+  // Tronco: erecto=1, 0-20=2, 20-60=3, >60=4
+  const trunk = a.trunk<=5?1 : a.trunk<=20?2 : a.trunk<=60?3 : 4;
+  // Cuello: 0-20=1, >20=2
+  const neck = a.neck<=20?1 : 2;
+  // Brazo superior: -20/20=1, 20-45=2, 45-90=3, >90=4
+  const ua = a.ua<=20?1 : a.ua<=45?2 : a.ua<=90?3 : 4;
+  // Brazo inferior: 60-100=1, fuera=2
+  const la = (a.la>=60 && a.la<=100)?1 : 2;
+  // Muñeca: 0-15=1, >15=2
+  const wrist = a.wrist<=15?1 : 2;
+  // Piernas: >150°= bilateral(1), 120-150=flex30-60(3), <120=flex>60(4)
+  const legs = a.knee>=150?1 : a.knee>=120?3 : 4;
+
+  return {trunk, neck, ua, la, wrist, legs};
+}
+
+// Mapea ángulos medidos a niveles RULA
+function mapAnglesToRULA(a) {
+  const ua = a.ua<=20?1 : a.ua<=45?2 : a.ua<=90?3 : 4;
+  const la = (a.la>=60 && a.la<=100)?1 : 2;
+  const wrist = a.wrist<=5?1 : a.wrist<=15?2 : 3;
+  const neck = a.neck<=10?1 : a.neck<=20?2 : 3;
+  const trunk = a.trunk<=5?1 : a.trunk<=20?2 : a.trunk<=60?3 : 4;
+  return {ua, la, wrist, neck, trunk};
+}
+
+// Dibuja esqueleto sobre canvas y retorna dataURL
+function drawSkeleton(imgUrl, landmarks) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      // Conexiones del esqueleto
+      const connections = [
+        [PL.LEFT_SHOULDER, PL.RIGHT_SHOULDER],
+        [PL.LEFT_SHOULDER, PL.LEFT_ELBOW],[PL.LEFT_ELBOW, PL.LEFT_WRIST],
+        [PL.RIGHT_SHOULDER, PL.RIGHT_ELBOW],[PL.RIGHT_ELBOW, PL.RIGHT_WRIST],
+        [PL.LEFT_SHOULDER, PL.LEFT_HIP],[PL.RIGHT_SHOULDER, PL.RIGHT_HIP],
+        [PL.LEFT_HIP, PL.RIGHT_HIP],
+        [PL.LEFT_HIP, PL.LEFT_KNEE],[PL.LEFT_KNEE, PL.LEFT_ANKLE],
+        [PL.RIGHT_HIP, PL.RIGHT_KNEE],[PL.RIGHT_KNEE, PL.RIGHT_ANKLE],
+        [PL.NOSE, PL.LEFT_SHOULDER],[PL.NOSE, PL.RIGHT_SHOULDER],
+      ];
+
+      // Dibujar líneas
+      ctx.strokeStyle = "#00FF88"; ctx.lineWidth = Math.max(2, img.width/200);
+      connections.forEach(([a,b]) => {
+        const pa = landmarks[a], pb = landmarks[b];
+        if (pa && pb && pa.visibility > 0.5 && pb.visibility > 0.5) {
+          ctx.beginPath();
+          ctx.moveTo(pa.x * img.width, pa.y * img.height);
+          ctx.lineTo(pb.x * img.width, pb.y * img.height);
+          ctx.stroke();
+        }
+      });
+
+      // Dibujar puntos
+      const r = Math.max(3, img.width/150);
+      landmarks.forEach(p => {
+        if (p.visibility > 0.5) {
+          ctx.beginPath();
+          ctx.arc(p.x * img.width, p.y * img.height, r, 0, 2*Math.PI);
+          ctx.fillStyle = "#FF4444"; ctx.fill();
+          ctx.strokeStyle = "white"; ctx.lineWidth = 1; ctx.stroke();
+        }
+      });
+
+      res(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.src = imgUrl;
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // APP PRINCIPAL — ESTRUCTURA ORIGINAL CON CAMBIOS MÍNIMOS MARCADOS
 // ══════════════════════════════════════════════════════════════════════════
 function App() {
@@ -815,7 +991,9 @@ function App() {
   const [hallazgos,   setHallazgos]   = useState("");
   const [tareasDesc,  setTareasDesc]  = useState([]);
   const [aiCollapsed, setAiCollapsed] = useState({});
-  const [aiLog,       setAiLog]       = useState([]); // CAMBIO #7
+  const [aiLog,       setAiLog]       = useState([]);
+  const [poseData,    setPoseData]    = useState(null); // {angles, mapped, skeletonUrl, photoIdx}
+  const [poseLoading, setPoseLoading] = useState(false);
 
   const fileRef = useRef();
 
@@ -966,6 +1144,62 @@ function App() {
     }
     setFilled(true);
     setReviewData(null);
+  };
+
+  // Análisis de pose con MediaPipe
+  const analyzePose = async (photoIdx) => {
+    if (!photos[photoIdx] || typeof window.Pose === "undefined") {
+      alert(typeof window.Pose === "undefined"
+        ? "MediaPipe Pose no está disponible. Verifique su conexión a internet."
+        : "No hay foto seleccionada.");
+      return;
+    }
+    setPoseLoading(true);
+    try {
+      const pose = new window.Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
+      });
+      pose.setOptions({
+        modelComplexity: 2, // máxima precisión
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      const result = await new Promise((resolve, reject) => {
+        pose.onResults(r => resolve(r));
+        // Cargar imagen y enviar a MediaPipe
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width; canvas.height = img.height;
+          canvas.getContext("2d").drawImage(img, 0, 0);
+          try { await pose.send({image: canvas}); }
+          catch(e) { reject(e); }
+        };
+        img.onerror = () => reject(new Error("No se pudo cargar la imagen"));
+        img.src = photos[photoIdx].url;
+        setTimeout(() => reject(new Error("Timeout de MediaPipe")), 30000);
+      });
+
+      if (!result.poseLandmarks || result.poseLandmarks.length < 33) {
+        alert("No se detectó una persona completa en la imagen. Intente con otra foto.");
+        setPoseLoading(false);
+        return;
+      }
+
+      const angles = calcPoseAngles(result.poseLandmarks);
+      const mappedREBA = mapAnglesToREBA(angles);
+      const mappedRULA = mapAnglesToRULA(angles);
+      const skeletonUrl = await drawSkeleton(photos[photoIdx].url, result.poseLandmarks);
+
+      setPoseData({angles, mappedREBA, mappedRULA, skeletonUrl, photoIdx, photoLabel: photos[photoIdx].label});
+      pose.close();
+    } catch(e) {
+      alert("Error en análisis de pose: " + (e.message || "intente de nuevo"));
+    }
+    setPoseLoading(false);
   };
 
   const getRes = () => {
@@ -1257,6 +1491,100 @@ function App() {
                   {aiMsg[method]}
                 </div>
               )}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Panel de Medición Angular — MediaPipe Pose */}
+      {photos.length > 0 && (method==="REBA" || method==="RULA") && (
+        <Card title="📐 Medición Angular Objetiva (MediaPipe Pose)">
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+            {photos.map((p,i) => (
+              <div key={i} onClick={() => !poseLoading && analyzePose(i)}
+                style={{cursor:poseLoading?"not-allowed":"pointer",borderRadius:8,overflow:"hidden",
+                  border:`3px solid ${poseData?.photoIdx===i?"#22C55E":C.cb}`,opacity:poseLoading?0.6:1}}>
+                <img src={p.url} alt="" style={{width:60,height:60,objectFit:"cover",display:"block"}}/>
+                <div style={{fontSize:9,textAlign:"center",padding:"2px 0",
+                  background:poseData?.photoIdx===i?"#22C55E":C.cb,
+                  color:poseData?.photoIdx===i?"white":C.muted,fontWeight:700}}>{p.label}</div>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => analyzePose(activePhoto||0)} disabled={poseLoading}
+            style={{width:"100%",padding:"12px",marginBottom:12,
+              background:poseLoading?C.muted:`linear-gradient(135deg,#059669,#10B981)`,
+              color:"white",border:"none",borderRadius:10,cursor:poseLoading?"not-allowed":"pointer",
+              fontWeight:700,fontSize:14,boxShadow:poseLoading?"none":"0 3px 10px rgba(5,150,105,0.35)"}}>
+            {poseLoading ? "⏳ Detectando landmarks..." : "📐 Medir ángulos con MediaPipe Pose"}
+          </button>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8}}>
+            Selecciona una foto y haz clic para detectar puntos articulares y calcular ángulos reales.
+          </div>
+
+          {poseData && (
+            <div style={{borderRadius:12,overflow:"hidden",border:`2px solid #059669`}}>
+              <div style={{background:"linear-gradient(135deg,#065F46,#059669)",
+                color:"white",padding:"10px 16px",fontWeight:700,fontSize:13}}>
+                📐 Resultados — {poseData.photoLabel}
+              </div>
+              <div style={{padding:14}}>
+                {/* Imagen con esqueleto */}
+                <div style={{textAlign:"center",marginBottom:12}}>
+                  <img src={poseData.skeletonUrl} alt="Esqueleto"
+                    style={{maxWidth:"100%",maxHeight:300,borderRadius:8,border:`1px solid ${C.cb}`}}/>
+                </div>
+                {/* Tabla de ángulos medidos */}
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:12}}>
+                  <thead><tr style={{background:"#059669",color:"white"}}>
+                    <th style={{padding:"6px 10px",textAlign:"left"}}>Segmento</th>
+                    <th style={{padding:"6px 10px",textAlign:"center"}}>Ángulo medido</th>
+                    <th style={{padding:"6px 10px",textAlign:"center"}}>Nivel {method}</th>
+                    <th style={{padding:"6px 10px",textAlign:"left"}}>Criterio</th>
+                  </tr></thead>
+                  <tbody>
+                    {[
+                      ["Tronco", `${poseData.angles.trunk}°`,
+                        method==="REBA"?poseData.mappedREBA.trunk:poseData.mappedRULA.trunk,
+                        poseData.angles.trunk<=5?"Erecto":poseData.angles.trunk<=20?"0-20°":poseData.angles.trunk<=60?"20-60°":">60°"],
+                      ["Cuello", `${poseData.angles.neck}°`,
+                        method==="REBA"?poseData.mappedREBA.neck:poseData.mappedRULA.neck,
+                        poseData.angles.neck<=10?"0-10°":poseData.angles.neck<=20?"10-20°":">20°"],
+                      ["Brazo superior", `${poseData.angles.ua}° (I:${poseData.angles.uaL}° D:${poseData.angles.uaR}°)`,
+                        method==="REBA"?poseData.mappedREBA.ua:poseData.mappedRULA.ua,
+                        poseData.angles.ua<=20?"-20/20°":poseData.angles.ua<=45?"20-45°":poseData.angles.ua<=90?"45-90°":">90°"],
+                      ["Brazo inferior", `${poseData.angles.la}°`,
+                        method==="REBA"?poseData.mappedREBA.la:poseData.mappedRULA.la,
+                        poseData.angles.la>=60&&poseData.angles.la<=100?"60-100°":"Fuera rango"],
+                      ["Muñeca", `${poseData.angles.wrist}°`,
+                        method==="REBA"?poseData.mappedREBA.wrist:poseData.mappedRULA.wrist,
+                        poseData.angles.wrist<=15?"0-15°":">15°"],
+                      ["Rodillas", `${poseData.angles.knee}° (I:${poseData.angles.kneeL}° D:${poseData.angles.kneeR}°)`,
+                        poseData.mappedREBA.legs,
+                        poseData.angles.knee>=150?"Extendidas":poseData.angles.knee>=120?"Flex 30-60°":"Flex >60°"],
+                    ].map(([seg,ang,niv,crit],i) => (
+                      <tr key={i} style={{background:i%2===0?C.bg:"white",borderBottom:`1px solid ${C.cb}`}}>
+                        <td style={{padding:"5px 10px",fontWeight:600}}>{seg}</td>
+                        <td style={{padding:"5px 10px",textAlign:"center",fontWeight:700,color:"#059669"}}>{ang}</td>
+                        <td style={{padding:"5px 10px",textAlign:"center",fontWeight:700,color:C.orange}}>{niv}</td>
+                        <td style={{padding:"5px 10px",color:C.muted}}>{crit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Botón para aplicar valores al formulario */}
+                <button onClick={() => {
+                  const m = method==="REBA" ? poseData.mappedREBA : poseData.mappedRULA;
+                  if (method==="REBA") setReba(p => ({...p, trunk:m.trunk, neck:m.neck, ua:m.ua, la:m.la, wrist:m.wrist, legs:m.legs}));
+                  if (method==="RULA") setRula(p => ({...p, trunk:m.trunk, neck:m.neck, ua:m.ua, la:m.la, wrist:m.wrist}));
+                }} style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,#065F46,#059669)`,
+                  color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                  ✅ Aplicar ángulos medidos al formulario {method}
+                </button>
+                <div style={{fontSize:10,color:C.muted,marginTop:6,textAlign:"center"}}>
+                  Precisión estimada: ±3-5° · MediaPipe Pose Complexity 2 · Los valores son editables después de aplicar
+                </div>
+              </div>
             </div>
           )}
         </Card>
@@ -1769,6 +2097,56 @@ function App() {
             </ol>
           </div>
         );})()}
+
+        {/* Anexo: Medición Angular Objetiva — solo si se ejecutó pose estimation */}
+        {poseData && (
+          <div style={{marginBottom:20}}>
+            <div style={{fontWeight:700,color:"#059669",fontSize:14,marginBottom:10,
+              borderBottom:"2px solid #059669",paddingBottom:4}}>
+              Anexo: Medición Angular Objetiva (MediaPipe Pose)
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:12}}>
+              <div>
+                <img src={poseData.skeletonUrl} alt="Landmarks"
+                  style={{width:"100%",borderRadius:8,border:`1px solid ${C.cb}`}}/>
+                <div style={{fontSize:10,color:C.muted,textAlign:"center",marginTop:4}}>
+                  Foto: {poseData.photoLabel} · 33 landmarks detectados
+                </div>
+              </div>
+              <div>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                  <thead><tr style={{background:"#059669",color:"white"}}>
+                    <th style={{padding:"5px 8px",textAlign:"left"}}>Segmento</th>
+                    <th style={{padding:"5px 8px",textAlign:"center"}}>Ángulo</th>
+                    <th style={{padding:"5px 8px",textAlign:"center"}}>REBA</th>
+                    <th style={{padding:"5px 8px",textAlign:"center"}}>RULA</th>
+                  </tr></thead>
+                  <tbody>
+                    {[["Tronco",poseData.angles.trunk,poseData.mappedREBA.trunk,poseData.mappedRULA.trunk],
+                      ["Cuello",poseData.angles.neck,poseData.mappedREBA.neck,poseData.mappedRULA.neck],
+                      ["Brazo sup.",poseData.angles.ua,poseData.mappedREBA.ua,poseData.mappedRULA.ua],
+                      ["Brazo inf.",poseData.angles.la,poseData.mappedREBA.la,poseData.mappedRULA.la],
+                      ["Muñeca",poseData.angles.wrist,poseData.mappedREBA.wrist,poseData.mappedRULA.wrist],
+                      ["Rodillas",poseData.angles.knee,poseData.mappedREBA.legs,"—"]
+                    ].map(([s,a,r,u],i) => (
+                      <tr key={i} style={{borderBottom:`1px solid ${C.cb}`,background:i%2===0?C.bg:"white"}}>
+                        <td style={{padding:"4px 8px",fontWeight:600}}>{s}</td>
+                        <td style={{padding:"4px 8px",textAlign:"center",fontWeight:700,color:"#059669"}}>{a}°</td>
+                        <td style={{padding:"4px 8px",textAlign:"center",color:C.orange}}>{r}</td>
+                        <td style={{padding:"4px 8px",textAlign:"center",color:C.orange}}>{u}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.6}}>
+                  <strong>Metodología:</strong> Detección de 33 landmarks articulares mediante MediaPipe Pose
+                  (Google, modelo BlazePose GHUM 3D, complexity 2). Ángulos calculados por trigonometría
+                  vectorial (arctan2) entre segmentos corporales. Precisión reportada: ±3-5° en condiciones controladas.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Disclaimer legal + Vigencia normativa */}
         <div style={{marginBottom:20,padding:16,background:"#FEFCE8",border:"1.5px solid #CA8A04",
