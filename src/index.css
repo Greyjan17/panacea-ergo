@@ -16,4 +16,13 @@ body {
   body {
     background: white;
   }
+  @page {
+    margin: 1.5cm;
+  }
+  /* En impresión los gradientes a veces se ven planos en algunas impresoras —
+     forzamos color exacto para no perder branding. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

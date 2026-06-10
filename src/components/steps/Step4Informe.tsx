@@ -1,31 +1,22 @@
-import { Btn, Card } from '@/components/ui'
-import { Nav } from '@/components/wizard/Nav'
+import { Btn } from '@/components/ui'
+import { Informe } from '@/components/informe/Informe'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
 export function Step4Informe() {
   const setStep = useEvaluacion(s => s.setStep)
-  const info = useEvaluacion(s => s.info)
-
   return (
-    <Card title="📄 Informe Imprimible">
-      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-5 text-sm text-yellow-900 leading-relaxed">
-        <strong>F6 entregará:</strong> el informe profesional imprimible idéntico al v2.1
-        — encabezado, datos del puesto, tablas REBA/RULA/OWAS/NIOSH/MMC,
-        recomendaciones dinámicas (ingeniería + administrativas + vigilancia),
-        firma con CMP/RNA, QR de verificación y disclaimer legal.
+    <div>
+      <div className="noprint sticky top-0 z-20 bg-yellow-50 border-b border-yellow-200 px-4 py-3 mb-5 flex items-center justify-between rounded-xl">
+        <div className="text-xs text-yellow-900">
+          Vista de impresión. Usa{' '}
+          <kbd className="bg-white border px-1 rounded text-[10px]">⌘ + P</kbd> o el botón.
+        </div>
+        <div className="flex gap-2">
+          <Btn label="🖨 Imprimir / PDF" onClick={() => window.print()} size="sm" />
+          <Btn label="← Resultados" variant="outline" onClick={() => setStep(3)} size="sm" />
+        </div>
       </div>
-
-      <div className="mt-4 text-xs text-ergo-muted">
-        Por ahora, datos capturados: <strong>{info.empresa || '—'}</strong> · trabajador{' '}
-        <strong>{info.trabajador || '—'}</strong> · {info.metodos.length} método(s) activo(s).
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <Btn label="🖨 Imprimir (placeholder)" onClick={() => window.print()} />
-        <Btn label="← Volver a Resultados" variant="outline" onClick={() => setStep(3)} />
-      </div>
-
-      <Nav onBack={() => setStep(3)} />
-    </Card>
+      <Informe />
+    </div>
   )
 }

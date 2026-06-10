@@ -14,8 +14,10 @@ export function App() {
 
   return (
     <main className="min-h-screen p-5 max-w-3xl mx-auto">
-      <Header />
-      <ProgressBar current={step} />
+      <div className="noprint">
+        <Header />
+        <ProgressBar current={step} />
+      </div>
       {step === 0 && <Step0Datos />}
       {step === 1 && <Step1Fotos />}
       {step === 2 && <Step2Evaluacion />}
