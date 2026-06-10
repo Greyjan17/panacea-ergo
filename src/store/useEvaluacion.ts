@@ -67,8 +67,20 @@ export const DEFAULT_MMC: MMCInput = {
   factores: [],
 }
 
+export interface Photo {
+  /** dataURL JPEG/PNG (comprimida a max 800px) */
+  url: string
+  name: string
+  /** Lateral / Anterior / Posterior / Adicional N */
+  label: string
+}
+
+export type Step = 0 | 1 | 2 | 3 | 4
+
 interface State {
+  step: Step
   info: EvaluacionInfo
+  photos: Photo[]
   reba: REBAInput
   rula: RULAInput
   owas: OWASInput
@@ -77,8 +89,11 @@ interface State {
 }
 
 interface Actions {
+  setStep: (s: Step) => void
   setInfo: (patch: Partial<EvaluacionInfo>) => void
   toggleMethod: (m: Method) => void
+  addPhoto: (p: Photo) => void
+  removePhoto: (idx: number) => void
   setReba: (patch: Partial<REBAInput>) => void
   setRula: (patch: Partial<RULAInput>) => void
   setOwas: (patch: Partial<OWASInput>) => void
@@ -94,13 +109,16 @@ interface Actions {
 export type EvaluacionStore = State & Actions
 
 export const useEvaluacion = create<EvaluacionStore>(set => ({
+  step: 0,
   info: DEFAULT_INFO,
+  photos: [],
   reba: DEFAULT_REBA,
   rula: DEFAULT_RULA,
   owas: DEFAULT_OWAS,
   niosh: DEFAULT_NIOSH,
   mmc: DEFAULT_MMC,
 
+  setStep: s => set({ step: s }),
   setInfo: patch => set(s => ({ info: { ...s.info, ...patch } })),
   toggleMethod: m =>
     set(s => ({
@@ -111,6 +129,8 @@ export const useEvaluacion = create<EvaluacionStore>(set => ({
           : [...s.info.metodos, m],
       },
     })),
+  addPhoto: p => set(s => ({ photos: [...s.photos, p] })),
+  removePhoto: idx => set(s => ({ photos: s.photos.filter((_, i) => i !== idx) })),
 
   setReba: patch => set(s => ({ reba: { ...s.reba, ...patch } })),
   setRula: patch => set(s => ({ rula: { ...s.rula, ...patch } })),
