@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background: theme('colors.ergo.bg');
+  color: theme('colors.ergo.text');
+  font-family: theme('fontFamily.sans');
+}
+
+@media print {
+  .noprint {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
