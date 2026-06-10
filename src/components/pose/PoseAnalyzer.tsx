@@ -124,6 +124,18 @@ export function PoseAnalyzer({ method }: Props) {
           </div>
 
           <div className="p-3.5">
+            <div className="bg-amber-50 border-[1.5px] border-amber-400 rounded-lg p-3 mb-3 text-[12px] leading-relaxed">
+              <div className="font-bold text-amber-900 mb-1">
+                ⚠ Verificación obligatoria del profesional
+              </div>
+              <p className="text-amber-900">
+                MediaPipe Pose tiene precisión declarada de <strong>±3-5°</strong> en
+                condiciones ideales, pero en fotos del campo (oclusiones, ropa, ángulo de
+                cámara) el error real puede llegar a <strong>±10°</strong>. Revisa
+                visualmente el esqueleto antes de aplicar al formulario. Tu firma sobre
+                este informe asume responsabilidad por los valores finales.
+              </p>
+            </div>
             <img
               src={data.best.skeleton}
               alt="Esqueleto detectado"

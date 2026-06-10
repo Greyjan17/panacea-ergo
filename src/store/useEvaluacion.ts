@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Method, Sexo } from '@/types/ergo'
 import type { REBAInput } from '@/lib/calc/reba'
 import type { RULAInput } from '@/lib/calc/rula'
@@ -104,11 +105,20 @@ interface Actions {
   resetOwas: () => void
   resetNiosh: () => void
   resetMmc: () => void
+  resetAll: () => void
 }
 
 export type EvaluacionStore = State & Actions
 
-export const useEvaluacion = create<EvaluacionStore>(set => ({
+/**
+ * Estado persistente en localStorage:
+ *  - info, step, métodos, inputs de cada método
+ *  - NO se persisten las photos (dataURLs JPEG pueden ocupar varios MB
+ *    y romper la cuota de 5MB de localStorage).
+ */
+export const useEvaluacion = create<EvaluacionStore>()(
+  persist(
+    set => ({
   step: 0,
   info: DEFAULT_INFO,
   photos: [],
@@ -143,4 +153,31 @@ export const useEvaluacion = create<EvaluacionStore>(set => ({
   resetOwas: () => set({ owas: DEFAULT_OWAS }),
   resetNiosh: () => set({ niosh: DEFAULT_NIOSH }),
   resetMmc: () => set({ mmc: DEFAULT_MMC }),
-}))
+  resetAll: () =>
+    set({
+      step: 0,
+      info: DEFAULT_INFO,
+      photos: [],
+      reba: DEFAULT_REBA,
+      rula: DEFAULT_RULA,
+      owas: DEFAULT_OWAS,
+      niosh: DEFAULT_NIOSH,
+      mmc: DEFAULT_MMC,
+    }),
+    }),
+    {
+      name: 'panacea-ergo-evaluacion-v1',
+      storage: createJSONStorage(() => localStorage),
+      partialize: state => ({
+        step: state.step,
+        info: state.info,
+        reba: state.reba,
+        rula: state.rula,
+        owas: state.owas,
+        niosh: state.niosh,
+        mmc: state.mmc,
+      }),
+      version: 1,
+    },
+  ),
+)

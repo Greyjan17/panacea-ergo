@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import QRCode from 'qrcode'
 import { calcMmc } from '@/lib/calc/mmc'
 import { calcNiosh } from '@/lib/calc/niosh'
 import { calcOwas } from '@/lib/calc/owas'
@@ -380,18 +381,27 @@ export function Informe() {
       <div className="bg-yellow-50 border-[1.5px] border-yellow-600 rounded-xl p-4 text-[11px] text-yellow-900 leading-relaxed mb-5">
         <div className="font-bold text-xs mb-1.5">NOTA LEGAL Y METODOLÓGICA</div>
         <p>
-          Los valores posturales fueron estimados mediante análisis ergonómico estandarizado por el médico
-          firmante. La interpretación clínica, el juicio profesional y la responsabilidad técnico-legal recaen
-          exclusivamente en el evaluador.
+          <strong>Alcance:</strong> esta evaluación constituye un apoyo computacional al juicio
+          clínico del médico ocupacional firmante. <strong>NO sustituye</strong> la inspección
+          física del puesto de trabajo, la entrevista al trabajador, ni la medición de variables
+          ambientales que pudieran aplicar (ruido, vibración, iluminación, agentes químicos).
         </p>
         <p className="mt-1.5">
-          Marco normativo aplicado: <strong>RM N° 375-2008-TR</strong> (vigente desde 28/11/2008,
-          Norma Básica de Ergonomía y de Procedimiento de Evaluación de Riesgo Disergonómico) ·
-          <strong> ISO 11228-1:2003</strong> (Ergonomics — Manual handling — Lifting and carrying).
+          <strong>Responsabilidad:</strong> la interpretación clínica, el juicio profesional y la
+          responsabilidad técnico-legal recaen <strong>exclusivamente en el evaluador firmante</strong>.
+          Los valores numéricos provienen de tablas validadas internacionalmente; los hallazgos
+          cualitativos y las recomendaciones han sido revisados por el médico antes de su emisión.
         </p>
         <p className="mt-1.5">
-          Herramienta: PANACEA ERGO v3 · Tablas: REBA (Hignett &amp; McAtamney, 2000),
-          RULA (McAtamney &amp; Corlett, 1993), OWAS (Karhu et al., 1977), NIOSH (Waters et al., 1993).
+          <strong>Marco normativo:</strong> RM N° 375-2008-TR (vigente desde 28/11/2008, Norma
+          Básica de Ergonomía y de Procedimiento de Evaluación de Riesgo Disergonómico) ·
+          ISO 11228-1:2003 (Ergonomics — Manual handling — Lifting and carrying) ·
+          Ley N° 29783 — Ley de Seguridad y Salud en el Trabajo.
+        </p>
+        <p className="mt-1.5">
+          <strong>Herramienta:</strong> PANACEA ERGO v3 (código fuente auditable). Tablas:
+          REBA (Hignett &amp; McAtamney, 2000), RULA (McAtamney &amp; Corlett, 1993),
+          OWAS (Karhu et al., 1977), NIOSH (Waters et al., 1993).
         </p>
       </div>
 
@@ -625,22 +635,36 @@ function Firma({
   hoy: string
   ref: string
 }) {
-  const qrData = encodeURIComponent(
-    JSON.stringify({
-      app: 'PANACEA ERGO v3',
-      evaluador: info.evaluador,
-      emp: info.empresa,
-      trab: info.trabajador,
-      fecha: info.fecha,
-      metodos: info.metodos,
-      reba: ri.reba?.fin ?? null,
-      rula: ri.rula?.fin ?? null,
-      owas: ri.owas?.code ?? null,
-      niosh: ri.niosh?.LI.toFixed(2) ?? null,
-      mmc: ri.mmc ? `${mmc.peso}kg` : null,
-    }),
+  // QR generado en cliente (sin dependencia de api.qrserver.com).
+  const qrPayload = useMemo(
+    () =>
+      JSON.stringify({
+        app: 'PANACEA ERGO v3',
+        evaluador: info.evaluador,
+        emp: info.empresa,
+        trab: info.trabajador,
+        fecha: info.fecha,
+        metodos: info.metodos,
+        reba: ri.reba?.fin ?? null,
+        rula: ri.rula?.fin ?? null,
+        owas: ri.owas?.code ?? null,
+        niosh: ri.niosh?.LI.toFixed(2) ?? null,
+        mmc: ri.mmc ? `${mmc.peso}kg` : null,
+      }),
+    [info, ri, mmc.peso],
   )
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${qrData}`
+  const [qrUrl, setQrUrl] = useState<string>('')
+  useEffect(() => {
+    let cancelled = false
+    QRCode.toDataURL(qrPayload, { width: 180, margin: 1, errorCorrectionLevel: 'M' })
+      .then(url => {
+        if (!cancelled) setQrUrl(url)
+      })
+      .catch(() => setQrUrl(''))
+    return () => {
+      cancelled = true
+    }
+  }, [qrPayload])
   const generado = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
   return (
