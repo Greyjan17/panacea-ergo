@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background: theme('colors.ergo.bg');
+  color: theme('colors.ergo.text');
+  font-family: theme('fontFamily.sans');
+}
+
+@media print {
+  .noprint {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  @page {
+    margin: 1.5cm;
+  }
+  /* En impresión los gradientes a veces se ven planos en algunas impresoras —
+     forzamos color exacto para no perder branding. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

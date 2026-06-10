@@ -1,0 +1,5 @@
+export { Step0Datos } from './Step0Datos'
+export { Step1Fotos } from './Step1Fotos'
+export { Step2Evaluacion } from './Step2Evaluacion'
+export { Step3Resultados } from './Step3Resultados'
+export { Step4Informe } from './Step4Informe'
