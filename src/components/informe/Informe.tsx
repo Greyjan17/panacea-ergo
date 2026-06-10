@@ -399,7 +399,7 @@ export function Informe() {
           Ley N° 29783 — Ley de Seguridad y Salud en el Trabajo.
         </p>
         <p className="mt-1.5">
-          <strong>Herramienta:</strong> PANACEA ERGO v3 (código fuente auditable). Tablas:
+          <strong>Herramienta:</strong> PANACEA ERGO 3.0 (código fuente auditable). Tablas:
           REBA (Hignett &amp; McAtamney, 2000), RULA (McAtamney &amp; Corlett, 1993),
           OWAS (Karhu et al., 1977), NIOSH (Waters et al., 1993).
         </p>
@@ -639,7 +639,7 @@ function Firma({
   const qrPayload = useMemo(
     () =>
       JSON.stringify({
-        app: 'PANACEA ERGO v3',
+        app: 'PANACEA ERGO 3.0',
         evaluador: info.evaluador,
         emp: info.empresa,
         trab: info.trabajador,
@@ -672,7 +672,7 @@ function Firma({
       <div className="flex gap-3 items-end">
         <img src={qrUrl} alt="QR de verificación" width={80} height={80} className="rounded border border-ergo-cb" />
         <div className="text-[11px] text-ergo-muted leading-tight">
-          <div>PANACEA ERGO v3</div>
+          <div>PANACEA ERGO 3.0</div>
           <div>Normativa: RM 375-2008-TR · ISO 11228-1</div>
           <div>Documento confidencial — uso médico ocupacional</div>
           <div className="mt-1.5 font-mono text-[10px]">Generado: {generado} UTC</div>
