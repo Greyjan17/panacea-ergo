@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(201).json({ ok: true, evaluacion: rows[0] })
     } catch (err) {
       console.error('POST /api/evaluaciones', err)
-      res.status(500).json({ error: 'Error al guardar la evaluación' })
+      res.status(500).json({ error: `Error al guardar: ${(err as Error).message}` })
     }
     return
   }
@@ -74,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(200).json({ evaluaciones: rows, total: rows.length })
     } catch (err) {
       console.error('GET /api/evaluaciones', err)
-      res.status(500).json({ error: 'Error al listar evaluaciones' })
+      res.status(500).json({ error: `Error al listar: ${(err as Error).message}` })
     }
     return
   }

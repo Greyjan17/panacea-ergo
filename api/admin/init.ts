@@ -37,14 +37,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   try {
-    // Ejecutamos cada statement por separado (sql tag no soporta múltiples en uno).
+    // @neondatabase/serverless: `sql` solo se llama como tagged-template.
+    // Para DDL/SQL crudo usar `sql.query(text)`.
     const statements = SCHEMA_SQL.split(/;\s*\n/).map(s => s.trim()).filter(Boolean)
+    const conn = sql()
     for (const stmt of statements) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sql() as any)(stmt)
+      await (conn as any).query(stmt)
     }
-    // Comprobar resultado
-    const rows = (await (sql() as unknown as (q: string) => Promise<Record<string, unknown>[]>)(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (await (conn as any).query(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
     )) as Array<{ table_name: string }>
     res.status(200).json({
