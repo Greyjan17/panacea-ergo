@@ -2,8 +2,8 @@
 // Idempotente: usa CREATE TABLE IF NOT EXISTS. Requiere ADMIN_KEY.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireAdmin } from '../_lib/auth'
-import { sql } from '../_lib/db'
+import { requireAdmin } from '../_lib/auth.js'
+import { sql } from '../_lib/db.js'
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS evaluaciones (

@@ -3,8 +3,8 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { requireAdmin } from '../_lib/auth'
-import { sql } from '../_lib/db'
+import { requireAdmin } from '../_lib/auth.js'
+import { sql } from '../_lib/db.js'
 
 const PostSchema = z.object({
   empresa: z.string().min(1).max(200),

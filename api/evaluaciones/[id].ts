@@ -1,8 +1,8 @@
 // GET /api/evaluaciones/:id → recupera una evaluación con su payload completo.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireAdmin } from '../_lib/auth'
-import { sql } from '../_lib/db'
+import { requireAdmin } from '../_lib/auth.js'
+import { sql } from '../_lib/db.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!requireAdmin(req, res)) return
