@@ -89,7 +89,7 @@ export function Informe() {
         <div className="text-right text-[11px] opacity-90">
           <div className="font-bold">{info.evaluador}</div>
           <div>CMP 102517 · RNE/RNA 13334</div>
-          <div>panaceamedocup@gmail.com</div>
+          <div>contacto@sermedpa.com</div>
           <div className="mt-1">{info.fecha}</div>
         </div>
       </header>
