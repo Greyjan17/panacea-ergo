@@ -80,8 +80,10 @@ export async function guardarEvaluacion(body: SaveBody, key: string): Promise<{ 
   return { id: j.evaluacion.id }
 }
 
-export async function listarEvaluaciones(key: string, q = ''): Promise<EvaluacionResumen[]> {
-  const url = q ? `${BASE}?q=${encodeURIComponent(q)}` : BASE
+export async function listarEvaluaciones(key: string, q = '', limit = 50): Promise<EvaluacionResumen[]> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (q) params.set('q', q)
+  const url = `${BASE}?${params}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${key}` },
   })
@@ -95,4 +97,17 @@ export async function obtenerEvaluacion(id: string, key: string): Promise<Evalua
   })
   const j = await jsonOrThrow<{ evaluacion: EvaluacionCompleta }>(res)
   return j.evaluacion
+}
+
+export async function actualizarEvaluacion(
+  id: string,
+  body: { level_max: number; score_reba: number | null; payload: Record<string, unknown> },
+  key: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify(body),
+  })
+  await jsonOrThrow<{ ok: boolean }>(res)
 }

@@ -85,3 +85,26 @@ export function recalcularEvaluacion(payload: PayloadGuardado, metodos: Method[]
     subeRiesgo: cambios.some(c => c.nivelAntes === null || c.nivelDespues > c.nivelAntes),
   }
 }
+
+/** Payload actualizado: nuevos resultados + registro del recálculo con los resultados anteriores. */
+export function construirPayloadRecalculado(
+  payload: PayloadGuardado,
+  r: Recalculo,
+  levelMaxAnterior: number,
+): PayloadGuardado {
+  const previos = Array.isArray(payload.recalculos) ? payload.recalculos : []
+  return {
+    ...payload,
+    resultados: r.resultados,
+    recalculos: [
+      ...previos,
+      {
+        fecha: new Date().toISOString(),
+        version: VERSION_CALCULO,
+        motivo: 'Corrección de tablas RULA/OWAS/NIOSH/REBA',
+        resultadosAnteriores: payload.resultados ?? null,
+        levelMaxAnterior,
+      },
+    ],
+  }
+}

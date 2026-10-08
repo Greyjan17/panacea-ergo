@@ -10,7 +10,7 @@
 
 import { writeFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
-import { recalcularEvaluacion, VERSION_CALCULO, type PayloadGuardado } from '../src/lib/recalculo'
+import { construirPayloadRecalculado, recalcularEvaluacion, type PayloadGuardado } from '../src/lib/recalculo'
 import type { Method } from '../src/types/ergo'
 
 const NIVEL = ['Inapreciable', 'Bajo', 'Medio', 'Alto', 'Muy alto']
@@ -70,21 +70,7 @@ for (const f of filas) {
     r.cambios.map(c => `${c.metodo} ${c.nivelAntes ?? '?'}→${c.nivelDespues}`).join(', '))
 
   if (apply) {
-    const previos = Array.isArray(f.payload.recalculos) ? f.payload.recalculos : []
-    const payload = {
-      ...f.payload,
-      resultados: r.resultados,
-      recalculos: [
-        ...previos,
-        {
-          fecha: new Date().toISOString(),
-          version: VERSION_CALCULO,
-          motivo: 'Corrección de tablas RULA/OWAS/NIOSH/REBA',
-          resultadosAnteriores: f.payload.resultados ?? null,
-          levelMaxAnterior: f.level_max,
-        },
-      ],
-    }
+    const payload = construirPayloadRecalculado(f.payload, r, f.level_max)
     await sql`
       UPDATE evaluaciones
       SET level_max = ${r.levelMax}, score_reba = ${r.scoreReba}, payload = ${JSON.stringify(payload)}::jsonb

@@ -8,6 +8,7 @@ import {
   type EvaluacionResumen,
 } from '@/lib/api/historial'
 import { useEvaluacion } from '@/store/useEvaluacion'
+import { RevisionRecalculo } from './RevisionRecalculo'
 
 const RISK_COLOR = ['#22C55E', '#84CC16', '#EAB308', '#F97316', '#EF4444'] as const
 
@@ -78,6 +79,7 @@ export function Historial() {
 
   return (
     <Card title="📚 Historial de evaluaciones">
+      {adminKey && <RevisionRecalculo adminKey={adminKey} onDone={() => void cargar(q)} />}
       <div className="flex gap-2 mb-3">
         <input
           value={q}
