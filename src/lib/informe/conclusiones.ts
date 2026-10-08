@@ -78,22 +78,22 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     )
   }
 
-  // TME probables
+  // Exposición asociada a TME (no es diagnóstico)
   const tme: string[] = []
   if ((reba && reba.input.trunk >= 3) || (owas && owas.input.back >= 2)) {
-    tme.push('lumbalgia/hernia discal lumbar')
+    tme.push('lumbalgia')
   }
   if (reba && reba.input.ua >= 3) {
-    tme.push('tendinopatía manguito rotador')
+    tme.push('tendinopatía del manguito rotador')
   }
   if (reba && reba.input.wrist >= 2) {
-    tme.push('síndrome túnel carpiano')
+    tme.push('trastornos de muñeca')
   }
   if (reba && rebaPiernas(reba.input).rodillas >= 1) {
-    tme.push('condropatía rotuliana')
+    tme.push('sobrecarga de rodillas')
   }
   if (tme.length && maxLvl >= 2) {
-    out.push(`TME probables: ${tme.join(', ')}.`)
+    out.push(`Exposición asociada a mayor riesgo de TME: ${tme.join(', ')} (requiere confirmación clínica).`)
   }
 
   out.push(

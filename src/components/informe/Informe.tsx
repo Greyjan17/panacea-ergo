@@ -307,6 +307,12 @@ export function Informe() {
             />
             <Row cells={['Capacitación', mmc.form === 'si' ? 'Sí' : 'No (exigida por RM 375, num. 13)']} />
             <Row cells={['Factores adicionales', `${ri.mmc.nF} identificados`]} />
+            <Row
+              cells={[
+                'Criterio del nivel',
+                'Propio de la herramienta, no de la RM 375: peso respecto al límite (≤100% inapreciable, ≤120% bajo, ≤150% medio, ≤200% alto, >200% muy alto); 3+ factores adicionales elevan a medio y 5+ a alto.',
+              ]}
+            />
             {ri.mmc.gestante && (
               <Row cells={['Gestante', 'Sí — manipulación manual no permitida; reubicar (RM 375, num. 12)']} />
             )}
@@ -583,30 +589,31 @@ function RebaTabla({
         </div>
         <p>
           Puntuación <strong>{result.fin}/15</strong> — <strong>Nivel {result.level} ({niv.nivel})</strong>:{' '}
-          {result.level >= 3 ? 'intervención inmediata' : 'acción correctiva requerida'}.
-          Probabilidad de TME: <strong>{result.level >= 3 ? 'elevada' : 'moderada'}</strong>.
+          {niv.accion.toLowerCase()}.
+          Exposición a factores de riesgo de TME: <strong>{result.level >= 3 ? 'elevada' : 'moderada'}</strong>.
+          Lo siguiente describe la exposición postural observada; no constituye diagnóstico, que requiere evaluación clínica.
         </p>
         {result.level >= 2 && (
           <>
-            <p className="mt-2"><strong>TME con mayor riesgo:</strong></p>
+            <p className="mt-2"><strong>Postura asociada a mayor riesgo de:</strong></p>
             <ul className="pl-5 mt-1 list-disc leading-relaxed">
               {input.trunk >= 3 && (
                 <li>
-                  Lumbalgia crónica / hernia discal (L4-L5, L5-S1) por flexión{' '}
+                  Lumbalgia (sobrecarga lumbar) por flexión de tronco{' '}
                   {input.trunk === 4 ? '>60°' : '20-60°'}
                 </li>
               )}
               {input.ua >= 3 && (
                 <li>
-                  Síndrome del manguito rotador por elevación{' '}
+                  Tendinopatía del manguito rotador por elevación del brazo{' '}
                   {input.ua === 4 ? '>90°' : '45-90°'}
                 </li>
               )}
               {input.wrist >= 2 && (
-                <li>Síndrome del túnel carpiano por desviación &gt;15°{input.wristT ? ' con torsión' : ''}</li>
+                <li>Trastornos de muñeca (p. ej., síndrome del túnel carpiano) por flexión/extensión &gt;15°{input.wristT ? ' con desviación o torsión' : ''}</li>
               )}
-              {pier.rodillas >= 1 && <li>Condropatía rotuliana por postura en cuclillas/semisquatting</li>}
-              {input.neck >= 2 && <li>Cervicalgia tensional por flexión cervical &gt;20°</li>}
+              {pier.rodillas >= 1 && <li>Sobrecarga de rodillas por flexión mantenida</li>}
+              {input.neck >= 2 && <li>Cervicalgia por flexión cervical &gt;20° o extensión</li>}
             </ul>
           </>
         )}

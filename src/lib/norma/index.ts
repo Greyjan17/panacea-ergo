@@ -38,11 +38,12 @@ export const REBA_RIESGO: RebaRiesgo[] = [
   { max: 15, nivel: 'Muy Alto', accion: 'Acción INMEDIATA' },
 ]
 
+// Niveles de acción RULA (McAtamney & Corlett 1993): 1-2 / 3-4 / 5-6 / 7.
 export const RULA_ACCION = [
-  { max: 2, nivel: 'Aceptable', accion: 'Postura aceptable' },
-  { max: 3, nivel: 'Investigar', accion: 'Investigar, posibles cambios' },
-  { max: 4, nivel: 'Cambios pronto', accion: 'Investigar y cambiar pronto' },
-  { max: 99, nivel: 'Urgente', accion: 'Cambiar INMEDIATAMENTE' },
+  { max: 2, nivel: 'Aceptable', accion: 'Postura aceptable si no se mantiene ni se repite por periodos largos' },
+  { max: 4, nivel: 'Investigar', accion: 'Investigar; pueden requerirse cambios' },
+  { max: 6, nivel: 'Cambios pronto', accion: 'Investigar y cambiar pronto' },
+  { max: 99, nivel: 'Urgente', accion: 'Investigar y cambiar INMEDIATAMENTE' },
 ] as const
 
 export const OWAS_ACCION = [

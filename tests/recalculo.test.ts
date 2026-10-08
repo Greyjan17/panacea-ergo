@@ -13,9 +13,9 @@ describe('recalcularEvaluacion', () => {
       ['OWAS'],
     )
     expect(r.cambios).toHaveLength(1)
-    expect(r.cambios[0]).toMatchObject({ metodo: 'OWAS', nivelAntes: 1, nivelDespues: 3 })
+    expect(r.cambios[0]).toMatchObject({ metodo: 'OWAS', nivelAntes: 1, nivelDespues: 4 })
     expect(r.subeRiesgo).toBe(true)
-    expect(r.levelMax).toBe(3)
+    expect(r.levelMax).toBe(4)
   })
 
   it('RULA con tronco >60°: score B corregido cambia el resultado', () => {

@@ -131,6 +131,9 @@ export function MMCPanel() {
             </strong>{' '}
             · {result.nF} factor(es) adicional(es)
           </div>
+          <div className="text-[11px] text-ergo-muted mt-0.5">
+            El nivel MMC es un criterio de la herramienta (peso vs. límite y factores), no de la RM 375.
+          </div>
           {result.gestante && (
             <div className="mt-1.5 text-xs font-bold" style={{ color: '#991b1b' }}>
               ⛔ Gestante: no se permite la manipulación manual de cargas; debe ser reubicada (RM 375, Título III, num. 12).
