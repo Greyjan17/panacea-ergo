@@ -23,6 +23,7 @@ export function RULAPanel() {
             ] as const}
           />
           <Chk label="Hombro elevado" value={rula.shr} onChange={v => u('shr', v)} />
+          <Chk label="Abducido/rotado" value={rula.abd ?? false} onChange={v => u('abd', v)} />
           <Chk label="Apoyado" value={rula.sup} onChange={v => u('sup', v)} />
           <Sel
             label="Brazo inferior" value={rula.la}
@@ -35,7 +36,8 @@ export function RULAPanel() {
             onChange={v => u('wrist', v as RULAInput['wrist'])}
             options={[[1, '1·Neutra'], [2, '2·0-15°'], [3, '3·>15°']] as const}
           />
-          <Chk label="Torsión muñeca" value={rula.wristT} onChange={v => u('wristT', v)} />
+          <Chk label="Desviación radial/cubital" value={rula.wristDev ?? false} onChange={v => u('wristDev', v)} />
+          <Chk label="Giro muñeca al final del rango" value={rula.wristT} onChange={v => u('wristT', v)} />
           <Sel
             label="Músculo A" value={rula.mA}
             onChange={v => u('mA', v as RULAInput['mA'])}

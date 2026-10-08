@@ -45,9 +45,9 @@ export const DEFAULT_REBA: REBAInput = {
 }
 
 export const DEFAULT_RULA: RULAInput = {
-  ua: 1, shr: false, sup: false,
+  ua: 1, shr: false, abd: false, sup: false,
   la: 1, mid: false,
-  wrist: 1, wristT: false,
+  wrist: 1, wristDev: false, wristT: false,
   mA: 0, fA: 0,
   neck: 1, neckT: false, neckS: false,
   trunk: 1, trunkT: false, trunkS: false,

@@ -35,10 +35,12 @@ export const RULAParsedSchema = z
   .object({
     ua: z.number().int().min(1).max(4).optional(),
     shr: z.boolean().optional(),
+    abd: z.boolean().optional(),
     sup: z.boolean().optional(),
     la: z.number().int().min(1).max(2).optional(),
     mid: z.boolean().optional(),
     wrist: z.number().int().min(1).max(3).optional(),
+    wristDev: z.boolean().optional(),
     wristT: z.boolean().optional(),
     mA: z.number().int().min(0).max(1).optional(),
     fA: z.number().int().min(0).max(3).optional(),

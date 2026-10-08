@@ -227,9 +227,9 @@ export function Informe() {
           <Table head={['Segmento', 'Valor', 'Descripción']}>
             {(
               [
-                ['Brazo superior (A)', rula.ua, ['-20/20°', '20-45°', '45-90°', '>90°'][rula.ua - 1]],
+                ['Brazo superior (A)', rula.ua, `${['-20/20°', '20-45°', '45-90°', '>90°'][rula.ua - 1]}${rula.abd ? ' · abducido/rotado' : ''}`],
                 ['Brazo inferior (A)', rula.la, ['60-100°', 'Fuera rango'][rula.la - 1]],
-                ['Muñeca (A)', rula.wrist, ['Neutra', '0-15°', '>15°'][rula.wrist - 1]],
+                ['Muñeca (A)', rula.wrist, `${['Neutra', '0-15°', '>15°'][rula.wrist - 1]}${rula.wristDev ? ' · desviación' : ''}${rula.wristT ? ' · giro extremo' : ''}`],
                 ['Cuello (B)', rula.neck, ['0-10°', '10-20°', '>20°', 'Extensión'][rula.neck - 1]],
                 ['Tronco (B)', rula.trunk, ['Erecto', '0-20°', '20-60°', '>60°'][rula.trunk - 1]],
                 ['Score A', ri.rula.sA, 'Incluye músculo y fuerza'],
