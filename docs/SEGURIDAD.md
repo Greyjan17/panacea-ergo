@@ -6,22 +6,15 @@
 |---|---|
 | `DATABASE_URL` | Conexión a Neon Postgres |
 | `ADMIN_KEY` | Clave del evaluador. Solo se acepta como `Authorization: Bearer <clave>` (no por URL) |
-| `AI_WORKER_URL` | URL del Worker de IA en Cloudflare (ya no está en el código del navegador) |
-| `AI_WORKER_SECRET` | Secreto compartido con el Worker (generar con `openssl rand -hex 32`) |
+| `ANTHROPIC_API_KEY` | Clave de la API de Claude para el análisis de fotos con IA (`/api/ai/analyze`) |
 
-## Worker de IA (Cloudflare)
+## Análisis de fotos con IA
 
-El navegador ya no llama al Worker: lo hace `/api/ai/analyze`, protegido con `ADMIN_KEY`,
-enviando el header `X-Panacea-Secret`. Para cerrar el Worker al público, añadir al inicio
-de su `fetch` y guardar el mismo valor como secreto del Worker (`wrangler secret put PANACEA_SECRET`):
-
-```js
-if (request.headers.get('X-Panacea-Secret') !== env.PANACEA_SECRET) {
-  return new Response('No autorizado', { status: 401 })
-}
-```
-
-Mientras no se haga, el Worker sigue aceptando peticiones anónimas (y consumiendo créditos de IA).
+- Se ejecuta en Vercel (`/api/ai/analyze`), protegido con `ADMIN_KEY`. Ya no usa el Worker de Cloudflare.
+- Requiere marcar el consentimiento informado del trabajador; queda registrado en la evaluación (`info.consentimientoIA`).
+- La IA solo propone códigos posturales; el médico revisa y decide si los aplica.
+- El Worker antiguo `panacea-ergo-ai.wences18.workers.dev` (v2.1) ya no se usa. Si se recupera el acceso a esa
+  cuenta de Cloudflare, desactivarlo; mientras tanto, anular la clave de IA que tenga configurada.
 
 ## Llamadas manuales a la API
 

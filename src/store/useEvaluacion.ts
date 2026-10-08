@@ -19,6 +19,8 @@ export interface EvaluacionInfo {
   fecha: string
   evaluador: string
   metodos: Method[]
+  /** Consentimiento informado del trabajador para analizar sus fotos con IA (Ley 29733). */
+  consentimientoIA?: boolean
 }
 
 export const DEFAULT_INFO: EvaluacionInfo = {
@@ -33,6 +35,7 @@ export const DEFAULT_INFO: EvaluacionInfo = {
   fecha: new Date().toISOString().slice(0, 10),
   evaluador: 'Dr. Wenceslao Ochoa Cuadros',
   metodos: [],
+  consentimientoIA: false,
 }
 
 export const DEFAULT_REBA: REBAInput = {

@@ -1,5 +1,6 @@
 import { Suspense, lazy, useState } from 'react'
 import { MMCPanel, NIOSHPanel, OWASPanel, REBAPanel, RULAPanel } from '@/components/panels'
+import { AIAnalyzer } from '@/components/pose/AIAnalyzer'
 import { Card } from '@/components/ui'
 import { Nav } from '@/components/wizard/Nav'
 import type { Method } from '@/types/ergo'
@@ -45,6 +46,12 @@ export function Step2Evaluacion() {
       {active === 'OWAS' && <OWASPanel />}
       {active === 'NIOSH' && <NIOSHPanel />}
       {active === 'MMC' && <MMCPanel />}
+
+      {(active === 'REBA' || active === 'RULA' || active === 'OWAS') && photos.length > 0 && (
+        <Card title="🤖 Análisis de fotos con IA">
+          <AIAnalyzer method={active} />
+        </Card>
+      )}
 
       {showPose && photos.length > 0 && (
         <Card title="📐 Medición Angular Objetiva (MediaPipe Pose)">
