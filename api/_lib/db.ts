@@ -1,11 +1,13 @@
 // Cliente Neon serverless — usa la connection string de Vercel Marketplace.
 // Se inicializa una sola vez por instancia y se reutiliza entre invocaciones.
 
-import { neon } from '@neondatabase/serverless'
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
 
-let _sql: ReturnType<typeof neon> | null = null
+type Sql = NeonQueryFunction<false, false>
 
-export function sql(): ReturnType<typeof neon> {
+let _sql: Sql | null = null
+
+export function sql(): Sql {
   if (_sql) return _sql
   const url = process.env.DATABASE_URL
   if (!url) {

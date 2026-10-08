@@ -61,3 +61,31 @@ describe('REBA', () => {
     expect(calcReba({ ...base, trunk: 4, load: 2, ua: 4, neck: 2, legs: 3 }).level).toBeGreaterThanOrEqual(3) // fin>=8
   })
 })
+
+// Valores de referencia: Hignett S, McAtamney L. Applied Ergonomics 2000;31:201-205.
+describe('REBA — reglas de referencia', () => {
+  it('torsión + inclinación lateral del tronco suman +1 (no +2)', () => {
+    const una = calcReba({ ...base, trunk: 2, trunkT: true })
+    const ambas = calcReba({ ...base, trunk: 2, trunkT: true, trunkS: true })
+    expect(ambas.sA).toBe(una.sA)
+  })
+
+  it('torsión + inclinación lateral del cuello suman +1 (no +2)', () => {
+    const una = calcReba({ ...base, neck: 1, neckS: true })
+    const ambas = calcReba({ ...base, neck: 1, neckT: true, neckS: true })
+    expect(ambas.sA).toBe(una.sA)
+  })
+
+  it('Tabla C: A=6, B=9 → 9', () => {
+    // A=6: tronco 5 (4+torsión), cuello 1, piernas 2 → Tabla A 6
+    // B=9: brazo 6 (4+hombro+abd), antebrazo 2, muñeca 3 (2+torsión) → Tabla B 9
+    const r = calcReba({
+      ...base,
+      trunk: 4, trunkT: true, legs: 2,
+      ua: 4, shr: true, abd: true, la: 2, wrist: 2, wristT: true,
+    })
+    expect(r.sA).toBe(6)
+    expect(r.sB).toBe(9)
+    expect(r.sC).toBe(9)
+  })
+})

@@ -42,11 +42,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const statements = SCHEMA_SQL.split(/;\s*\n/).map(s => s.trim()).filter(Boolean)
     const conn = sql()
     for (const stmt of statements) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (conn as any).query(stmt)
+      await conn.query(stmt)
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = (await (conn as any).query(
+    const rows = (await conn.query(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
     )) as Array<{ table_name: string }>
     res.status(200).json({
@@ -56,6 +54,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (err) {
     console.error('/api/admin/init', err)
-    res.status(500).json({ error: (err as Error).message })
+    res.status(500).json({ error: 'Error al aplicar la migración' })
   }
 }

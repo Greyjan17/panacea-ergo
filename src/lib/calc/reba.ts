@@ -72,7 +72,7 @@ const TABLE_C: number[][] = [
   [2, 3, 3, 3, 4, 5, 6, 7, 7, 8, 8, 8],
   [3, 4, 4, 4, 5, 6, 7, 8, 8, 9, 9, 9],
   [4, 4, 4, 5, 6, 7, 8, 8, 9, 9, 9, 9],
-  [6, 6, 6, 7, 8, 8, 9, 9, 10, 10, 10, 10],
+  [6, 6, 6, 7, 8, 8, 9, 9, 9, 10, 10, 10],
   [7, 7, 7, 8, 9, 9, 9, 10, 10, 11, 11, 11],
   [8, 8, 8, 9, 10, 10, 10, 10, 10, 11, 11, 11],
   [9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12],
@@ -93,14 +93,15 @@ function finalLevel(fin: number): RiskLevel {
 
 export function calcReba(input: REBAInput): REBAResult {
   // Ajustes al tronco
+  // Torsión o inclinación lateral: +1 (no acumulativo, Hignett & McAtamney 2000)
   const trunkFin = clamp(
-    input.trunk + (input.trunkT ? 1 : 0) + (input.trunkS ? 1 : 0),
+    input.trunk + (input.trunkT || input.trunkS ? 1 : 0),
     1,
     5,
   )
   // Ajustes al cuello
   const neckFin = clamp(
-    input.neck + (input.neckT ? 1 : 0) + (input.neckS ? 1 : 0),
+    input.neck + (input.neckT || input.neckS ? 1 : 0),
     1,
     3,
   )

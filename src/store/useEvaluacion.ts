@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware'
 import type { Method, Sexo } from '@/types/ergo'
 import type { REBAInput } from '@/lib/calc/reba'
 import type { RULAInput } from '@/lib/calc/rula'
@@ -45,9 +45,9 @@ export const DEFAULT_REBA: REBAInput = {
 }
 
 export const DEFAULT_RULA: RULAInput = {
-  ua: 1, shr: false, sup: false,
+  ua: 1, shr: false, abd: false, sup: false,
   la: 1, mid: false,
-  wrist: 1, wristT: false,
+  wrist: 1, wristDev: false, wristT: false,
   mA: 0, fA: 0,
   neck: 1, neckT: false, neckS: false,
   trunk: 1, trunkT: false, trunkS: false,
@@ -110,8 +110,40 @@ interface Actions {
 
 export type EvaluacionStore = State & Actions
 
+/** Vigencia del borrador local: contiene datos personales (nombre, DNI). */
+export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
+
 /**
- * Estado persistente en localStorage:
+ * localStorage con caducidad: el borrador se descarta pasadas DRAFT_TTL_MS
+ * desde el último guardado, para no dejar datos del trabajador indefinidamente
+ * en equipos compartidos.
+ */
+export const expiringLocalStorage: StateStorage = {
+  getItem: name => {
+    const raw = localStorage.getItem(name)
+    if (raw === null) return null
+    try {
+      const wrapped = JSON.parse(raw) as { savedAt?: unknown; value?: unknown }
+      if (typeof wrapped.savedAt === 'number' && typeof wrapped.value === 'string') {
+        if (Date.now() - wrapped.savedAt > DRAFT_TTL_MS) {
+          localStorage.removeItem(name)
+          return null
+        }
+        return wrapped.value
+      }
+    } catch {
+      return null
+    }
+    return raw // formato anterior sin fecha: se reescribe con fecha en el próximo guardado
+  },
+  setItem: (name, value) => {
+    localStorage.setItem(name, JSON.stringify({ savedAt: Date.now(), value }))
+  },
+  removeItem: name => localStorage.removeItem(name),
+}
+
+/**
+ * Estado persistente en localStorage (caduca a las 24 h, ver expiringLocalStorage):
  *  - info, step, métodos, inputs de cada método
  *  - NO se persisten las photos (dataURLs JPEG pueden ocupar varios MB
  *    y romper la cuota de 5MB de localStorage).
@@ -167,7 +199,7 @@ export const useEvaluacion = create<EvaluacionStore>()(
     }),
     {
       name: 'panacea-ergo-evaluacion-v1',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => expiringLocalStorage),
       partialize: state => ({
         step: state.step,
         info: state.info,

@@ -13,7 +13,7 @@ const PostSchema = z.object({
   puesto: z.string().max(200).optional().default(''),
   evaluador: z.string().min(1).max(200),
   fecha_evaluacion: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  metodos: z.array(z.string()).default([]),
+  metodos: z.array(z.enum(['REBA', 'RULA', 'OWAS', 'NIOSH', 'MMC'])).max(5).default([]),
   level_max: z.number().int().min(0).max(4).default(0),
   score_reba: z.number().int().min(0).max(15).nullable().optional(),
   payload: z.record(z.unknown()),
@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'POST') {
     const parsed = PostSchema.safeParse(req.body)
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues })
+      res.status(400).json({ error: 'Datos inválidos', detalles: parsed.error.issues.map(i => i.path.join('.')) })
       return
     }
     const e = parsed.data
@@ -44,14 +44,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(201).json({ ok: true, evaluacion: rows[0] })
     } catch (err) {
       console.error('POST /api/evaluaciones', err)
-      res.status(500).json({ error: `Error al guardar: ${(err as Error).message}` })
+      res.status(500).json({ error: 'Error al guardar la evaluación' })
     }
     return
   }
 
   if (req.method === 'GET') {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
-    const limit = Math.min(Number(req.query.limit) || 50, 200)
+    const limit = Math.min(Math.max(Math.trunc(Number(req.query.limit)) || 50, 1), 200)
     try {
       const rows = q
         ? await sql()`
@@ -74,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(200).json({ evaluaciones: rows, total: rows.length })
     } catch (err) {
       console.error('GET /api/evaluaciones', err)
-      res.status(500).json({ error: `Error al listar: ${(err as Error).message}` })
+      res.status(500).json({ error: 'Error al listar evaluaciones' })
     }
     return
   }

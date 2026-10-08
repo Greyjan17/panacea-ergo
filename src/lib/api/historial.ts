@@ -1,5 +1,7 @@
 // Cliente HTTP del backend de historial.
 // El admin key se persiste en localStorage tras el primer ingreso vía ?k=.
+// El parámetro se elimina de la URL de inmediato para que no quede en el
+// historial del navegador ni se filtre por Referer.
 
 const KEY_STORAGE = 'panacea-ergo-admin-key'
 
@@ -7,9 +9,12 @@ export function readAdminKey(): string {
   // 1) localStorage si ya fue establecido antes
   // 2) URL search ?k= (en cuyo caso lo persiste)
   if (typeof window === 'undefined') return ''
-  const fromUrl = new URLSearchParams(window.location.search).get('k')
+  const url = new URL(window.location.href)
+  const fromUrl = url.searchParams.get('k')
   if (fromUrl) {
     try { localStorage.setItem(KEY_STORAGE, fromUrl) } catch {}
+    url.searchParams.delete('k')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
     return fromUrl
   }
   try {
@@ -75,8 +80,10 @@ export async function guardarEvaluacion(body: SaveBody, key: string): Promise<{ 
   return { id: j.evaluacion.id }
 }
 
-export async function listarEvaluaciones(key: string, q = ''): Promise<EvaluacionResumen[]> {
-  const url = q ? `${BASE}?q=${encodeURIComponent(q)}` : BASE
+export async function listarEvaluaciones(key: string, q = '', limit = 50): Promise<EvaluacionResumen[]> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (q) params.set('q', q)
+  const url = `${BASE}?${params}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${key}` },
   })
@@ -90,4 +97,17 @@ export async function obtenerEvaluacion(id: string, key: string): Promise<Evalua
   })
   const j = await jsonOrThrow<{ evaluacion: EvaluacionCompleta }>(res)
   return j.evaluacion
+}
+
+export async function actualizarEvaluacion(
+  id: string,
+  body: { level_max: number; score_reba: number | null; payload: Record<string, unknown> },
+  key: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify(body),
+  })
+  await jsonOrThrow<{ ok: boolean }>(res)
 }
