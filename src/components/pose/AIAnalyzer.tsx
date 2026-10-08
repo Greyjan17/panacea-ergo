@@ -11,7 +11,7 @@ import { useEvaluacion } from '@/store/useEvaluacion'
 const NOMBRES: Record<string, string> = {
   trunk: 'Tronco', trunkT: 'Tronco: torsión', trunkS: 'Tronco: inclinación lateral',
   neck: 'Cuello', neckT: 'Cuello: torsión', neckS: 'Cuello: inclinación lateral',
-  legs: 'Piernas', ua: 'Brazo', shr: 'Hombro elevado', abd: 'Brazo abducido',
+  legs: 'Piernas: apoyo', knee: 'Rodillas: flexión', ua: 'Brazo', shr: 'Hombro elevado', abd: 'Brazo abducido',
   sup: 'Brazo apoyado', la: 'Antebrazo', mid: 'Cruza línea media',
   wrist: 'Muñeca', wristT: 'Muñeca: torsión/giro', wristDev: 'Muñeca: desviación',
   back: 'Espalda', arms: 'Brazos',

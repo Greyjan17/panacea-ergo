@@ -1,11 +1,11 @@
 // Normativa peruana e internacional aplicable.
 // Fuentes:
-//  - RM N° 375-2008-TR (Perú): límites de carga manual
+//  - RM N° 375-2008-TR (Perú): límites de carga manual (Título III, num. 4 varones y num. 5 mujeres)
 //  - ISO 11228-1:2003: ergonomía — manipulación manual
 
 export const RM_375 = {
   masculino: { general: 25, entrenado: 40 },
-  femenino: { general: 15, entrenado: 25 },
+  femenino: { general: 15, entrenado: 24 },
 } as const
 
 export interface ISOGrupo {

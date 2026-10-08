@@ -39,7 +39,7 @@ const CAMPOS: Record<Metodo, Record<string, Campo>> = {
   REBA: {
     trunk: [1, 4], trunkT: 'bool', trunkS: 'bool',
     neck: [1, 2], neckT: 'bool', neckS: 'bool',
-    legs: [1, 4],
+    legs: [1, 2], knee: [0, 2],
     ua: [1, 4], shr: 'bool', abd: 'bool', sup: 'bool',
     la: [1, 2],
     wrist: [1, 2], wristT: 'bool',
@@ -86,7 +86,7 @@ const CODIGOS: Record<Metodo, string> = {
   REBA: `REBA (Hignett & McAtamney 2000). Códigos:
 - trunk: 1 erecto; 2 flexión 0-20° o extensión 0-20°; 3 flexión 20-60° o extensión >20°; 4 flexión >60°. trunkT: torsión; trunkS: inclinación lateral.
 - neck: 1 flexión 0-20°; 2 flexión >20° o extensión. neckT: torsión; neckS: inclinación lateral.
-- legs: 1 apoyo bilateral, caminando o sentado; 2 apoyo unilateral o inestable; 3 flexión de rodillas 30-60°; 4 flexión de rodillas >60° (no sentado).
+- legs: 1 apoyo bilateral, caminando o sentado; 2 apoyo unilateral o inestable. knee (se suma a legs): 0 rodillas con flexión <30° o sentado; 1 flexión 30-60°; 2 flexión >60° (no sentado).
 - ua (brazo): 1 extensión/flexión hasta 20°; 2 extensión >20° o flexión 20-45°; 3 flexión 45-90°; 4 flexión >90°. shr: hombro elevado; abd: brazo abducido o rotado; sup: brazo apoyado o persona inclinada a favor de la gravedad.
 - la (antebrazo): 1 flexión 60-100°; 2 flexión <60° o >100°.
 - wrist: 1 flexión/extensión 0-15°; 2 >15°. wristT: desviación o torsión.`,

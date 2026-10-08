@@ -23,6 +23,8 @@ export interface MMCInput {
   frec: Frecuencia
   form: 'si' | 'no'
   factores: FactorMMC[]
+  /** Trabajadora gestante: RM 375-2008-TR, Título III, num. 12 prohíbe la manipulación manual de cargas. */
+  gestante?: boolean
 }
 
 export interface MMCResult {
@@ -36,6 +38,8 @@ export interface MMCResult {
   level: RiskLevel
   cumRM: boolean
   cumISO: boolean
+  /** true si aplica la prohibición por embarazo (num. 12). */
+  gestante: boolean
 }
 
 export function calcMmc(input: MMCInput, sexo: Sexo): MMCResult {
@@ -68,6 +72,10 @@ export function calcMmc(input: MMCInput, sexo: Sexo): MMCResult {
   if (nF >= 3 && level < 2) level = 2
   if (nF >= 5 && level < 3) level = 3
 
+  // Gestante: la norma no fija un límite menor, prohíbe la tarea (reubicación).
+  const gestante = sexo === 'femenino' && input.gestante === true
+  if (gestante) level = 4
+
   return {
     limRM: rm.general,
     limEnt: rm.entrenado,
@@ -77,7 +85,8 @@ export function calcMmc(input: MMCInput, sexo: Sexo): MMCResult {
     pct,
     nF,
     level,
-    cumRM: input.peso <= rm.general,
-    cumISO: input.peso <= isoLim,
+    cumRM: !gestante && input.peso <= rm.general,
+    cumISO: !gestante && input.peso <= isoLim,
+    gestante,
   }
 }

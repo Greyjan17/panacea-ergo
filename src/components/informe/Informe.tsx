@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { calcMmc } from '@/lib/calc/mmc'
 import { calcNiosh } from '@/lib/calc/niosh'
 import { calcOwas } from '@/lib/calc/owas'
-import { calcReba } from '@/lib/calc/reba'
+import { calcReba, rebaActividad, rebaPiernas } from '@/lib/calc/reba'
 import { calcRula } from '@/lib/calc/rula'
 import { getConclusiones } from '@/lib/informe/conclusiones'
 import { getRecomendaciones } from '@/lib/informe/recomendaciones'
@@ -175,7 +175,7 @@ export function Informe() {
             </p>
             {ri.mmc && (
               <p className="mt-1.5 text-xs text-ergo-mid">
-                Límites RM 375: <strong>Varón 25 kg</strong> (entrenado 40 kg) · <strong>Mujer 15 kg</strong> (entrenada 25 kg).
+                Límites RM 375: <strong>Varón {RM_375.masculino.general} kg</strong> (entrenado {RM_375.masculino.entrenado} kg) · <strong>Mujer {RM_375.femenino.general} kg</strong> (entrenada {RM_375.femenino.entrenado} kg).
                 ISO 11228-1 · {mmc.grupo}: ocasional {isoRow.ocasional}kg / frecuente {isoRow.frecuente}kg /
                 muy frecuente {isoRow.muyFrecuente}kg.
               </p>
@@ -209,7 +209,7 @@ export function Informe() {
                     {mmc.frec === 'frecuente' && ' (1-4/min)'}
                   </li>
                   <li>
-                    Capacitación MMC: <strong>{mmc.form === 'si' ? 'Sí' : 'No (agravante RM 375 Art.6)'}</strong>
+                    Capacitación MMC: <strong>{mmc.form === 'si' ? 'Sí' : 'No (exigida por RM 375, num. 13)'}</strong>
                   </li>
                 </ul>
               </div>
@@ -305,8 +305,11 @@ export function Informe() {
                 ri.mmc.exc > 0 ? `${ri.mmc.exc.toFixed(1)} kg (${ri.mmc.pct.toFixed(0)}%)` : 'Dentro del límite',
               ]}
             />
-            <Row cells={['Capacitación', mmc.form === 'si' ? 'Sí' : 'No (agravante Art.6)']} />
+            <Row cells={['Capacitación', mmc.form === 'si' ? 'Sí' : 'No (exigida por RM 375, num. 13)']} />
             <Row cells={['Factores adicionales', `${ri.mmc.nF} identificados`]} />
+            {ri.mmc.gestante && (
+              <Row cells={['Gestante', 'Sí — manipulación manual no permitida; reubicar (RM 375, num. 12)']} />
+            )}
             <FinalRow
               level={ri.mmc.level}
               cells={[
@@ -512,9 +515,12 @@ function RebaTabla({
     : input.trunk === 3 ? 'Flexión 20-60°'
     : `Flexión >60°${input.trunkT ? ', con torsión' : ''}`
   const dN = input.neck === 1 ? 'Flexión 0-20°' : 'Flexión >20°, tensión suboccipital'
-  const dL = input.legs === 1 ? 'Bilateral estable'
-    : input.legs === 2 ? 'Unilateral'
-    : input.legs === 3 ? 'Flex rodillas 30-60°' : 'Flex rodillas >60°'
+  const pier = rebaPiernas(input)
+  const dRod = ['rodillas <30°', 'rodillas 30-60°', 'rodillas >60°'][pier.rodillas]
+  const dL = pier.base === null
+    ? `Flex ${dRod} (registro antiguo: apoyo no anotado)`
+    : `${pier.base === 1 ? 'Bilateral' : 'Unilateral'}, ${dRod}`
+  const act = rebaActividad(input)
   const dC = input.load === 0 ? '<5kg'
     : input.load === 1 ? '5-10kg' : `>10kg${input.shock ? ' + shock' : ''}`
   const dUA = input.ua === 1 ? '-20/20°'
@@ -534,7 +540,7 @@ function RebaTabla({
       <Table head={['Segmento', 'Hallazgo', 'Nivel']}>
         <Row cells={['Tronco', dT, input.trunk]} />
         <Row cells={['Cuello', dN, input.neck]} />
-        <Row cells={['Piernas', dL, input.legs]} />
+        <Row cells={['Piernas', dL, pier.score]} />
         <Row cells={['Carga', dC, `+${input.load}${input.shock ? '+1' : ''}`]} />
         <tr style={{ background: '#D2691E33', fontWeight: 700 }}>
           <td colSpan={2} className="px-2 py-1.5">SCORE GRUPO A</td>
@@ -558,7 +564,7 @@ function RebaTabla({
         <Row cells={['Tabla A', result.sA]} />
         <Row cells={['Tabla B', result.sB]} />
         <Row cells={['Tabla C', result.sC]} />
-        <Row cells={[`Actividad (+${input.act})`, input.act]} />
+        <Row cells={[`Actividad (+${act})`, act]} />
         <FinalRow
           level={result.level}
           cells={[
@@ -599,7 +605,7 @@ function RebaTabla({
               {input.wrist >= 2 && (
                 <li>Síndrome del túnel carpiano por desviación &gt;15°{input.wristT ? ' con torsión' : ''}</li>
               )}
-              {input.legs >= 3 && <li>Condropatía rotuliana por postura en cuclillas/semisquatting</li>}
+              {pier.rodillas >= 1 && <li>Condropatía rotuliana por postura en cuclillas/semisquatting</li>}
               {input.neck >= 2 && <li>Cervicalgia tensional por flexión cervical &gt;20°</li>}
             </ul>
           </>

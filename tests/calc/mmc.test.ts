@@ -69,4 +69,19 @@ describe('MMC — RM 375-2008-TR / ISO 11228-1', () => {
     const r = calcMmc(baseM, 'masculino')
     expect(r.limEnt).toBe(40)
   })
+
+  it('Mujer entrenada: límite 24 kg (RM 375, Título III, num. 5)', () => {
+    expect(calcMmc({ ...baseF, peso: 10 }, 'femenino').limEnt).toBe(24)
+  })
+
+  it('Gestante: manipulación no permitida aunque el peso esté bajo el límite (num. 12)', () => {
+    const r = calcMmc({ ...baseF, peso: 5, gestante: true }, 'femenino')
+    expect(r.gestante).toBe(true)
+    expect(r.cumRM).toBe(false)
+    expect(r.level).toBe(4)
+  })
+
+  it('La marca de gestante no aplica si el sexo es masculino', () => {
+    expect(calcMmc({ ...baseM, peso: 5, gestante: true }, 'masculino').gestante).toBe(false)
+  })
 })
