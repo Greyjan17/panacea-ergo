@@ -1,27 +1,29 @@
 // Cliente HTTP del backend de historial.
-// El admin key se persiste en localStorage tras el primer ingreso vía ?k=.
-// El parámetro se elimina de la URL de inmediato para que no quede en el
-// historial del navegador ni se filtre por Referer.
+// La clave personal se ingresa en la app (nunca por URL) y se guarda en este navegador.
 
 const KEY_STORAGE = 'panacea-ergo-admin-key'
 
 export function readAdminKey(): string {
-  // 1) localStorage si ya fue establecido antes
-  // 2) URL search ?k= (en cuyo caso lo persiste)
   if (typeof window === 'undefined') return ''
+  // Limpieza: versiones antiguas aceptaban ?k= en la URL; ya no se usa y se retira de la barra.
   const url = new URL(window.location.href)
-  const fromUrl = url.searchParams.get('k')
-  if (fromUrl) {
-    try { localStorage.setItem(KEY_STORAGE, fromUrl) } catch {}
+  if (url.searchParams.has('k')) {
     url.searchParams.delete('k')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
-    return fromUrl
   }
   try {
     return localStorage.getItem(KEY_STORAGE) ?? ''
   } catch {
     return ''
   }
+}
+
+/** Pide la clave personal y la guarda en este navegador. Devuelve '' si se cancela. */
+export function pedirClave(mensaje = 'Ingrese su clave personal de acceso:'): string {
+  const k = (prompt(mensaje) ?? '').trim()
+  if (!k) return ''
+  try { localStorage.setItem(KEY_STORAGE, k) } catch {}
+  return k
 }
 
 export function clearAdminKey() {
@@ -110,4 +112,59 @@ export async function actualizarEvaluacion(
     body: JSON.stringify(body),
   })
   await jsonOrThrow<{ ok: boolean }>(res)
+}
+
+export async function borrarEvaluacion(id: string, key: string): Promise<void> {
+  const res = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${key}` },
+  })
+  await jsonOrThrow<{ ok: boolean }>(res)
+}
+
+// ─── Administración: usuarios y registro de accesos ─────────────────────
+
+export interface UsuarioAcceso {
+  id: string
+  creado_en: string
+  nombre: string
+  rol: 'admin' | 'evaluador'
+  activo: boolean
+}
+
+export interface RegistroAcceso {
+  ts: string
+  usuario_nombre: string
+  accion: string
+  evaluacion_id: string | null
+  detalle: string | null
+  ip: string | null
+}
+
+const auth = (key: string) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${key}` })
+
+/** Lanza un error con `status` para distinguir "no es administrador" (401/403). */
+export async function listarUsuarios(key: string): Promise<UsuarioAcceso[]> {
+  const res = await fetch('/api/admin/usuarios', { headers: auth(key) })
+  if (res.status === 401 || res.status === 403) throw Object.assign(new Error('no-admin'), { status: res.status })
+  return (await jsonOrThrow<{ usuarios: UsuarioAcceso[] }>(res)).usuarios
+}
+
+export async function crearUsuario(
+  nombre: string,
+  rol: 'admin' | 'evaluador',
+  key: string,
+): Promise<{ usuario: UsuarioAcceso; clave: string }> {
+  const res = await fetch('/api/admin/usuarios', { method: 'POST', headers: auth(key), body: JSON.stringify({ nombre, rol }) })
+  return jsonOrThrow(res)
+}
+
+export async function cambiarUsuario(id: string, activo: boolean, key: string): Promise<void> {
+  const res = await fetch('/api/admin/usuarios', { method: 'PATCH', headers: auth(key), body: JSON.stringify({ id, activo }) })
+  await jsonOrThrow<{ ok: boolean }>(res)
+}
+
+export async function listarAccesos(key: string): Promise<RegistroAcceso[]> {
+  const res = await fetch('/api/admin/accesos', { headers: auth(key) })
+  return (await jsonOrThrow<{ accesos: RegistroAcceso[] }>(res)).accesos
 }

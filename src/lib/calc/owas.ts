@@ -55,6 +55,7 @@ export function calcOwas(input: OWASInput): OWASResult {
   if (cat === undefined) {
     throw new RangeError(`Código OWAS fuera de rango: ${code}`)
   }
-  const level = (cat - 1) as RiskLevel
+  // Categorías de acción OWAS llevadas a la escala común (ver types/ergo.ts).
+  const level = ([0, 2, 3, 4] as const)[cat - 1] as RiskLevel
   return { code, cat, level, action: OWAS_ACCION[cat - 1] }
 }

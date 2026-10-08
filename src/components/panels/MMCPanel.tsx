@@ -70,6 +70,9 @@ export function MMCPanel() {
             onChange={v => u('form', v as MMCInput['form'])}
             options={[['no', 'No — sin capacitación'], ['si', 'Sí — capacitado']] as const}
           />
+          {sexo === 'femenino' && (
+            <Chk label="Trabajadora gestante" value={mmc.gestante ?? false} onChange={v => u('gestante', v)} />
+          )}
         </div>
         <div>
           <div className="text-[11px] font-bold text-ergo-orange uppercase mb-1.5">
@@ -119,7 +122,7 @@ export function MMCPanel() {
               : ' — DENTRO DEL LÍMITE'}
           </div>
           <div className="text-xs text-ergo-muted mt-1">
-            Trabajador entrenado puede cargar hasta {result.limEnt}kg (RM 375 Art.4)
+            Trabajador entrenado puede cargar hasta {result.limEnt}kg (RM 375, Título III, num. {sexo === 'femenino' ? 5 : 4})
           </div>
           <div className="text-[13px] mt-1.5">
             Riesgo MMC:{' '}
@@ -128,9 +131,17 @@ export function MMCPanel() {
             </strong>{' '}
             · {result.nF} factor(es) adicional(es)
           </div>
+          <div className="text-[11px] text-ergo-muted mt-0.5">
+            El nivel MMC es un criterio de la herramienta (peso vs. límite y factores), no de la RM 375.
+          </div>
+          {result.gestante && (
+            <div className="mt-1.5 text-xs font-bold" style={{ color: '#991b1b' }}>
+              ⛔ Gestante: no se permite la manipulación manual de cargas; debe ser reubicada (RM 375, Título III, num. 12).
+            </div>
+          )}
           {mmc.form === 'no' && (
             <div className="mt-1.5 text-xs text-ergo-orange font-semibold">
-              ⚠ Sin capacitación — agravante RM 375 Art.6
+              ⚠ Sin capacitación — exigida por RM 375, Título III, num. 13
             </div>
           )}
         </div>

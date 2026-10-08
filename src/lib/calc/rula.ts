@@ -96,12 +96,12 @@ const TABLE_C: number[][] = [
 
 const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x))
 
+// Niveles de acción RULA llevados a la escala común (ver types/ergo.ts).
 function finalLevel(fin: number): RiskLevel {
-  if (fin <= 2) return 0
-  if (fin <= 3) return 1
-  if (fin <= 4) return 2
-  if (fin <= 6) return 3
-  return 4
+  if (fin <= 2) return 0 // NA1: aceptable
+  if (fin <= 4) return 1 // NA2: investigar, pueden requerirse cambios
+  if (fin <= 6) return 3 // NA3: investigar y cambiar pronto
+  return 4 // NA4: cambiar inmediatamente
 }
 
 export function calcRula(input: RULAInput): RULAResult {

@@ -3,7 +3,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { requireAdmin } from '../_lib/auth.js'
+import { audit, requireUser } from '../_lib/auth.js'
 import { sql } from '../_lib/db.js'
 
 const PostSchema = z.object({
@@ -20,7 +20,8 @@ const PostSchema = z.object({
 })
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAdmin(req, res)) return
+  const user = await requireUser(req, res)
+  if (!user) return
 
   if (req.method === 'POST') {
     const parsed = PostSchema.safeParse(req.body)
@@ -41,6 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         )
         RETURNING id, creado_en
       `
+      const creada = rows[0] as { id: string }
+      await audit(req, user, 'crear', creada.id)
       res.status(201).json({ ok: true, evaluacion: rows[0] })
     } catch (err) {
       console.error('POST /api/evaluaciones', err)
@@ -71,6 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ORDER BY fecha_evaluacion DESC, creado_en DESC
             LIMIT ${limit}
           `
+      await audit(req, user, 'listar', null, q ? `búsqueda: ${q.slice(0, 100)}` : null)
       res.status(200).json({ evaluaciones: rows, total: rows.length })
     } catch (err) {
       console.error('GET /api/evaluaciones', err)
