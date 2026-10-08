@@ -1,5 +1,7 @@
 // Cliente HTTP del backend de historial.
 // El admin key se persiste en localStorage tras el primer ingreso vía ?k=.
+// El parámetro se elimina de la URL de inmediato para que no quede en el
+// historial del navegador ni se filtre por Referer.
 
 const KEY_STORAGE = 'panacea-ergo-admin-key'
 
@@ -7,9 +9,12 @@ export function readAdminKey(): string {
   // 1) localStorage si ya fue establecido antes
   // 2) URL search ?k= (en cuyo caso lo persiste)
   if (typeof window === 'undefined') return ''
-  const fromUrl = new URLSearchParams(window.location.search).get('k')
+  const url = new URL(window.location.href)
+  const fromUrl = url.searchParams.get('k')
   if (fromUrl) {
     try { localStorage.setItem(KEY_STORAGE, fromUrl) } catch {}
+    url.searchParams.delete('k')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
     return fromUrl
   }
   try {
