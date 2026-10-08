@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Badge, Card, Chk, Sec, Sel } from '@/components/ui'
-import { calcReba, type REBAInput } from '@/lib/calc/reba'
+import { calcReba, rebaPiernas, type REBAInput } from '@/lib/calc/reba'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
 export function REBAPanel() {
@@ -9,6 +9,17 @@ export function REBAPanel() {
   const result = useMemo(() => calcReba(reba), [reba])
 
   const u = <K extends keyof REBAInput>(k: K, v: REBAInput[K]) => setReba({ [k]: v } as Partial<REBAInput>)
+  const piernas = rebaPiernas(reba)
+  // Registros antiguos (sin casillas): se convierten a la condición única que tenían marcada.
+  const act = {
+    actStatic: reba.actStatic ?? reba.act === 1,
+    actRepeat: reba.actRepeat ?? reba.act === 2,
+    actRapid: reba.actRapid ?? reba.act === 3,
+  }
+  const setAct = (patch: Partial<typeof act>) => {
+    const n = { ...act, ...patch }
+    setReba({ ...n, act: ((n.actStatic ? 1 : 0) + (n.actRepeat ? 1 : 0) + (n.actRapid ? 1 : 0)) as REBAInput['act'] })
+  }
 
   return (
     <Card title="REBA — Rapid Entire Body Assessment">
@@ -34,13 +45,20 @@ export function REBAPanel() {
 
           <Sec title="Piernas" />
           <Sel
-            label="Posición" value={reba.legs}
-            onChange={v => u('legs', v as REBAInput['legs'])}
-            options={[
-              [1, '1·Bilateral'], [2, '2·Unilateral'],
-              [3, '3·Flex 30-60°'], [4, '4·Flex >60°'],
-            ] as const}
+            label="Apoyo" value={piernas.base ?? 2}
+            onChange={v => setReba({ legs: v as 1 | 2, knee: piernas.rodillas })}
+            options={[[1, '1·Bilateral, caminando o sentado'], [2, '2·Unilateral o inestable']] as const}
           />
+          <Sel
+            label="Flexión de rodillas" value={piernas.rodillas}
+            onChange={v => setReba({ knee: v as 0 | 1 | 2, legs: piernas.base ?? 2 })}
+            options={[[0, '+0·<30° o sentado'], [1, '+1·30-60°'], [2, '+2·>60° (no sentado)']] as const}
+          />
+          {piernas.legado && (
+            <div className="text-[11px] text-ergo-orange">
+              Registro antiguo: no se anotó el tipo de apoyo. Confírmelo para recalcular.
+            </div>
+          )}
 
           <Sec title="Carga" />
           <Sel
@@ -87,13 +105,10 @@ export function REBAPanel() {
               [0, '0·Bueno'], [1, '1·Regular'], [2, '2·Malo'], [3, '3·Inaceptable'],
             ] as const}
           />
-          <Sel
-            label="Actividad" value={reba.act}
-            onChange={v => u('act', v as REBAInput['act'])}
-            options={[
-              [0, '0·Normal'], [1, '1·Estático'], [2, '2·Repetitivo'], [3, '3·Cambios rápidos'],
-            ] as const}
-          />
+          <div className="text-[11px] font-semibold mt-1">Actividad (+1 por cada una)</div>
+          <Chk label="Estática: una o más partes del cuerpo >1 min" value={act.actStatic} onChange={v => setAct({ actStatic: v })} />
+          <Chk label="Repetitiva: >4 veces/min (sin contar caminar)" value={act.actRepeat} onChange={v => setAct({ actRepeat: v })} />
+          <Chk label="Cambios rápidos de postura o base inestable" value={act.actRapid} onChange={v => setAct({ actRapid: v })} />
         </div>
       </div>
       <Badge level={result.level} text={`Score ${result.fin}/15`} />

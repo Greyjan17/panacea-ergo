@@ -67,7 +67,7 @@ export function PoseAnalyzer({ method }: Props) {
       let bestScore = -1
       for (const r of results) {
         const m = mapAnglesToREBA(r.angles)
-        const score = m.trunk + m.neck + m.ua + m.la + m.wrist + m.legs
+        const score = m.trunk + m.neck + m.ua + m.la + m.wrist + m.knee
         if (score > bestScore) {
           bestScore = score
           best = r
@@ -93,7 +93,9 @@ export function PoseAnalyzer({ method }: Props) {
     if (method === 'REBA') {
       const m = mapAnglesToREBA(data.worst)
       setReba({
-        trunk: m.trunk, neck: m.neck, ua: m.ua, la: m.la, wrist: m.wrist, legs: m.legs,
+        // Solo la flexión de rodillas: el apoyo (bilateral/unilateral) lo conserva el evaluador.
+        trunk: m.trunk, neck: m.neck, ua: m.ua, la: m.la, wrist: m.wrist, knee: m.knee,
+        legs: useEvaluacion.getState().reba.legs >= 2 ? 2 : 1,
       })
     } else if (method === 'RULA') {
       const m = mapAnglesToRULA(data.worst)
@@ -245,6 +247,6 @@ function mapToNivel(
   if (seg === 'Brazo sup.') return r.ua
   if (seg === 'Brazo inf.') return r.la
   if (seg === 'Muñeca') return r.wrist
-  if (seg === 'Rodillas') return method === 'REBA' ? (r as ReturnType<typeof mapAnglesToREBA>).legs : '—'
+  if (seg === 'Rodillas') return method === 'REBA' ? `+${(r as ReturnType<typeof mapAnglesToREBA>).knee}` : '—'
   return '—'
 }

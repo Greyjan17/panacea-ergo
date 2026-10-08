@@ -1,6 +1,6 @@
 // Generador de conclusiones dinámicas para el informe.
 
-import type { REBAInput, REBAResult } from '@/lib/calc/reba'
+import { rebaPiernas, type REBAInput, type REBAResult } from '@/lib/calc/reba'
 import type { RULAInput, RULAResult } from '@/lib/calc/rula'
 import type { OWASInput, OWASResult } from '@/lib/calc/owas'
 import type { NIOSHInput, NIOSHResult } from '@/lib/calc/niosh'
@@ -34,8 +34,8 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     if (reba.input.trunk >= 3) {
       factores.push(`flexión tronco ${reba.input.trunk === 4 ? '>60°' : '20-60°'}`)
     }
-    if (reba.input.legs >= 3) {
-      factores.push(`postura en ${reba.input.legs === 4 ? 'cuclillas' : 'semisquatting'}`)
+    if (rebaPiernas(reba.input).rodillas >= 1) {
+      factores.push(`postura en ${rebaPiernas(reba.input).rodillas === 2 ? 'cuclillas' : 'semisquatting'}`)
     }
     if (reba.input.ua >= 3) {
       factores.push(`elevación brazo ${reba.input.ua === 4 ? '>90°' : '45-90°'}`)
@@ -68,7 +68,9 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     )
   }
 
-  if (mmc && mmc.input.peso > 0) {
+  if (mmc && mmc.result.gestante) {
+    out.push('MMC: trabajadora gestante — la RM 375-2008-TR (Título III, num. 12) no permite la manipulación manual de cargas; corresponde reubicación.')
+  } else if (mmc && mmc.input.peso > 0) {
     out.push(
       `MMC: ${mmc.input.peso}kg — RM375: ${mmc.result.cumRM ? 'cumple' : 'INCUMPLE'} (${mmc.result.limRM}kg), ` +
         `ISO: ${mmc.result.cumISO ? 'cumple' : 'INCUMPLE'} (${mmc.result.limISO}kg). ` +
@@ -87,7 +89,7 @@ export function getConclusiones(input: ConclusionesInput): string[] {
   if (reba && reba.input.wrist >= 2) {
     tme.push('síndrome túnel carpiano')
   }
-  if (reba && reba.input.legs >= 3) {
+  if (reba && rebaPiernas(reba.input).rodillas >= 1) {
     tme.push('condropatía rotuliana')
   }
   if (tme.length && maxLvl >= 2) {
