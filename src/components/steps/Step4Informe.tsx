@@ -6,7 +6,7 @@ import { calcNiosh } from '@/lib/calc/niosh'
 import { calcOwas } from '@/lib/calc/owas'
 import { calcReba } from '@/lib/calc/reba'
 import { calcRula } from '@/lib/calc/rula'
-import { guardarEvaluacion, readAdminKey } from '@/lib/api/historial'
+import { guardarEvaluacion, pedirClave, readAdminKey } from '@/lib/api/historial'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
 export function Step4Informe() {
@@ -25,12 +25,7 @@ export function Step4Informe() {
   const guardar = async () => {
     const key = readAdminKey()
     if (!key) {
-      const k = prompt(
-        'Ingresa el admin key (te lo dio Wences al configurar el backend).\n' +
-          'Se guardará en este navegador para próximas evaluaciones.',
-      )
-      if (!k) return
-      try { localStorage.setItem('panacea-ergo-admin-key', k) } catch {}
+      if (!pedirClave('Ingrese su clave personal de acceso.\nSe guardará en este navegador para próximas evaluaciones.')) return
     }
     const adminKey = readAdminKey()
     if (!adminKey) return
@@ -100,7 +95,7 @@ export function Step4Informe() {
         <div className="noprint bg-red-50 border border-red-300 text-red-800 rounded-xl px-3 py-2 mb-3 text-xs">
           No se pudo guardar: <strong>{error}</strong>
           <br />
-          Si es la primera vez, asegúrate de que el backend esté configurado (Neon + DATABASE_URL + ADMIN_KEY).
+          Necesita su clave personal de acceso (la entrega el administrador desde Historial → Usuarios).
         </div>
       )}
       {savedId && (

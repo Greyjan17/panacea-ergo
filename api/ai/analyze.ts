@@ -1,5 +1,5 @@
 // POST /api/ai/analyze — análisis postural de fotos con Claude (visión).
-// Protegido con ADMIN_KEY. Requiere ANTHROPIC_API_KEY en Vercel.
+// Requiere clave de acceso (ver _lib/auth.ts) y ANTHROPIC_API_KEY en Vercel.
 //
 // Devuelve una PROPUESTA de códigos posturales para REBA, RULA u OWAS; el médico
 // la revisa y decide si la aplica al formulario. Solo se evalúa la postura visible:
@@ -10,7 +10,7 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { z as z4 } from 'zod/v4'
-import { requireAdmin } from '../_lib/auth.js'
+import { audit, requireUser } from '../_lib/auth.js'
 
 const MODEL = 'claude-opus-5-5'
 
@@ -117,7 +117,8 @@ Reglas:
 let client: Anthropic | null = null
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAdmin(req, res)) return
+  const user = await requireUser(req, res)
+  if (!user) return
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'POST únicamente' })
     return
@@ -169,6 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const values = filtrarValores(method, out.values as Record<string, unknown>)
     const c = out.confianza.trim().toLowerCase()
     const confidence = c === 'alta' ? 0.9 : c === 'media' ? 0.6 : 0.3
+    await audit(req, user, 'ia_analizar', null, `${method} · ${photos.length} foto(s)`)
     res.status(200).json({ values, hallazgos: out.hallazgos, confidence })
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) {

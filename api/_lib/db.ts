@@ -16,3 +16,6 @@ export function sql(): Sql {
   _sql = neon(url)
   return _sql
 }
+
+/** true si hay base de datos configurada (en pruebas unitarias no la hay). */
+export const hasDb = (): boolean => Boolean(process.env.DATABASE_URL)

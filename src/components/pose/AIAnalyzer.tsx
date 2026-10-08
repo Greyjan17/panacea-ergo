@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Btn, Chk } from '@/components/ui'
 import { analizarFotos, type MetodoIA } from '@/lib/ai/client'
 import { parseAIResponse } from '@/lib/ai/parser'
-import { readAdminKey } from '@/lib/api/historial'
+import { pedirClave, readAdminKey } from '@/lib/api/historial'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
 const NOMBRES: Record<string, string> = {
@@ -41,10 +41,8 @@ export function AIAnalyzer({ method }: { method: MetodoIA }) {
   const analizar = async () => {
     let key = readAdminKey()
     if (!key) {
-      const k = prompt('Ingrese su clave de acceso (la misma del Historial):')
-      if (!k) return
-      try { localStorage.setItem('panacea-ergo-admin-key', k) } catch {}
-      key = k
+      key = pedirClave('Ingrese su clave personal de acceso (la misma del Historial):')
+      if (!key) return
     }
     setLoading(true)
     setError(null)
