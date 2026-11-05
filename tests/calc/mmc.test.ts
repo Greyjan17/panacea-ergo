@@ -41,10 +41,21 @@ describe('MMC — RM 375-2008-TR / ISO 11228-1', () => {
     expect(r.level).toBeGreaterThanOrEqual(3)
   })
 
-  it('Mujer con 20kg frecuente → no cumple ISO (límite 9kg)', () => {
-    const r = calcMmc({ ...baseF, peso: 20 }, 'femenino')
-    expect(r.limISO).toBe(9)
-    expect(r.cumISO).toBe(false)
+  it('ISO 11228-1:2021: mujer 20-45 años, masa de referencia 20 kg', () => {
+    const r = calcMmc({ ...baseF, grupo: 'Mujer de 20 a 45 años', peso: 20 }, 'femenino')
+    expect(r.limISO).toBe(20)
+    expect(r.cumISO).toBe(true)
+    expect(calcMmc({ ...baseF, grupo: 'Mujer de 20 a 45 años', peso: 21 }, 'femenino').cumISO).toBe(false)
+  })
+
+  it('ISO 11228-1:2021: masas de referencia por sexo y edad, y grupos de versiones anteriores', () => {
+    expect(calcMmc({ ...baseM, grupo: 'Varón de 20 a 45 años', peso: 1 }, 'masculino').limISO).toBe(25)
+    expect(calcMmc({ ...baseM, grupo: 'Varón menor de 20 o mayor de 45 años', peso: 1 }, 'masculino').limISO).toBe(20)
+    expect(calcMmc({ ...baseF, grupo: 'Mujer menor de 20 o mayor de 45 años', peso: 1 }, 'femenino').limISO).toBe(15)
+    expect(calcMmc({ ...baseF, grupo: 'Mujer adulta (18-45 años)', peso: 1 }, 'femenino').limISO).toBe(20)
+    expect(calcMmc({ ...baseM, grupo: 'Varón mayor (>45 años)', peso: 1 }, 'masculino').limISO).toBe(20)
+    // grupo de otro sexo → grupo de 20-45 años del sexo del trabajador
+    expect(calcMmc({ ...baseF, grupo: 'Varón de 20 a 45 años', peso: 1 }, 'femenino').limISO).toBe(20)
   })
 
   it('3 factores adicionales empujan el nivel a 2 aunque peso esté en límite', () => {

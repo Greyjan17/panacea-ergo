@@ -66,7 +66,7 @@ export const DEFAULT_NIOSH: NIOSHInput = {
 
 export const DEFAULT_MMC: MMCInput = {
   peso: 0,
-  grupo: 'Varón adulto (18-45 años)',
+  grupo: 'Varón de 20 a 45 años',
   frec: 'frecuente',
   form: 'no',
   factores: [],

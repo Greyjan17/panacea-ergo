@@ -45,7 +45,8 @@ export function MMCPanel() {
         <strong className="text-ergo-orange">Normativa:</strong> RM N° 375-2008-TR · ISO 11228-1.
         Límite {sexo === 'femenino' ? 'mujer' : 'varón'}:{' '}
         <strong>{RM_375[sexo].general}kg</strong> (entrenado:{' '}
-        {RM_375[sexo].entrenado}kg). ISO 11228-1 ({mmc.frec}): <strong>{result.limISO}kg</strong>.
+        {RM_375[sexo].entrenado}kg). Masa de referencia ISO 11228-1:2021: <strong>{result.limISO}kg</strong>.
+        {mmc.frec !== 'ocasional' && <> En levantamiento repetitivo, complemente con NIOSH (límite ajustado por frecuencia y posición).</>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -54,7 +55,7 @@ export function MMCPanel() {
           <Sel
             label="Grupo del trabajador" value={mmc.grupo}
             onChange={v => u('grupo', v)}
-            options={ISO_11228.map(x => [x.grupo, x.grupo] as const)}
+            options={ISO_11228.filter(x => x.sexo === sexo).map(x => [x.grupo, x.grupo] as const)}
           />
           <Sel
             label="Frecuencia de exposición" value={mmc.frec}
@@ -112,7 +113,7 @@ export function MMCPanel() {
                   : { background: '#fee2e2', color: '#991b1b' }
               }
             >
-              ISO 11228 ({mmc.frec}): {result.cumISO ? '✓ CUMPLE' : '✗ INCUMPLE'} · {result.limISO}kg
+              ISO 11228-1 (masa de referencia): {result.cumISO ? '✓ CUMPLE' : '✗ INCUMPLE'} · {result.limISO}kg
             </span>
           </div>
           <div className="font-extrabold text-[15px]" style={{ color: ringColor }}>
