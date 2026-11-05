@@ -1,7 +1,7 @@
 // Normativa peruana e internacional aplicable.
 // Fuentes:
 //  - RM N° 375-2008-TR (Perú): límites de carga manual (Título III, num. 4 varones y num. 5 mujeres)
-//  - ISO 11228-1:2003: ergonomía — manipulación manual
+//  - ISO 11228-1:2021: ergonomía — manipulación manual (masas de referencia, cuadro de condiciones críticas y Anexo B)
 
 export const RM_375 = {
   masculino: { general: 25, entrenado: 40 },
@@ -10,19 +10,39 @@ export const RM_375 = {
 
 export interface ISOGrupo {
   grupo: string
-  ocasional: number
-  frecuente: number
-  muyFrecuente: number
+  sexo: 'masculino' | 'femenino'
+  /** Masa de referencia (kg): por encima de ella el levantamiento es condición crítica. */
+  mref: number
 }
 
+// ISO 11228-1:2021, cuadro de condiciones críticas (texto oficial): mujeres 20-45 años 20 kg;
+// mujeres <20 o >45 años 15 kg; varones 20-45 años 25 kg; varones <20 o >45 años 20 kg.
+// La norma NO fija límites fijos por frecuencia: en tareas repetitivas el límite se obtiene
+// ajustando la masa de referencia por frecuencia y posición (método tipo NIOSH, Anexo C).
 export const ISO_11228: ISOGrupo[] = [
-  { grupo: 'Varón adulto (18-45 años)', ocasional: 25, frecuente: 15, muyFrecuente: 10 },
-  { grupo: 'Varón joven (16-18 años)', ocasional: 20, frecuente: 13, muyFrecuente: 8 },
-  { grupo: 'Varón mayor (>45 años)', ocasional: 20, frecuente: 13, muyFrecuente: 8 },
-  { grupo: 'Mujer adulta (18-45 años)', ocasional: 15, frecuente: 9, muyFrecuente: 6 },
-  { grupo: 'Mujer joven (16-18 años)', ocasional: 13, frecuente: 8, muyFrecuente: 5 },
-  { grupo: 'Mujer mayor (>45 años)', ocasional: 13, frecuente: 8, muyFrecuente: 5 },
+  { grupo: 'Varón de 20 a 45 años', sexo: 'masculino', mref: 25 },
+  { grupo: 'Varón menor de 20 o mayor de 45 años', sexo: 'masculino', mref: 20 },
+  { grupo: 'Mujer de 20 a 45 años', sexo: 'femenino', mref: 20 },
+  { grupo: 'Mujer menor de 20 o mayor de 45 años', sexo: 'femenino', mref: 15 },
 ]
+
+/** Nombres de grupo de versiones anteriores (evaluaciones guardadas) → grupo ISO 11228-1:2021. */
+const GRUPO_ANTERIOR: Record<string, string> = {
+  'Varón adulto (18-45 años)': 'Varón de 20 a 45 años',
+  'Varón joven (16-18 años)': 'Varón menor de 20 o mayor de 45 años',
+  'Varón mayor (>45 años)': 'Varón menor de 20 o mayor de 45 años',
+  'Mujer adulta (18-45 años)': 'Mujer de 20 a 45 años',
+  'Mujer joven (16-18 años)': 'Mujer menor de 20 o mayor de 45 años',
+  'Mujer mayor (>45 años)': 'Mujer menor de 20 o mayor de 45 años',
+}
+
+/** Grupo ISO del trabajador; si no coincide con su sexo, se usa el grupo de 20-45 años de su sexo. */
+export function isoGrupo(nombre: string, sexo: 'masculino' | 'femenino'): ISOGrupo {
+  const n = GRUPO_ANTERIOR[nombre] ?? nombre
+  const g = ISO_11228.find(x => x.grupo === n)
+  if (g && g.sexo === sexo) return g
+  return ISO_11228.find(x => x.sexo === sexo)!
+}
 
 export interface RebaRiesgo {
   max: number

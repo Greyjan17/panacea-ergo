@@ -1,9 +1,9 @@
 // MMC — Manejo Manual de Cargas conforme a:
 //   RM N° 375-2008-TR (Perú)
-//   ISO 11228-1:2003
+//   ISO 11228-1:2021 (masa de referencia por sexo y edad)
 
 import type { Frecuencia, RiskLevel, Sexo } from '@/types/ergo'
-import { ISO_11228, RM_375 } from '@/lib/norma'
+import { isoGrupo, RM_375 } from '@/lib/norma'
 
 export type FactorMMC =
   | 'peso'
@@ -44,15 +44,9 @@ export interface MMCResult {
 
 export function calcMmc(input: MMCInput, sexo: Sexo): MMCResult {
   const rm = RM_375[sexo]
-  const row =
-    ISO_11228.find(x => x.grupo === input.grupo) ??
-    (sexo === 'masculino' ? ISO_11228[0]! : ISO_11228[3]!)
-  const isoLim =
-    input.frec === 'ocasional'
-      ? row.ocasional
-      : input.frec === 'frecuente'
-        ? row.frecuente
-        : row.muyFrecuente
+  // Masa de referencia ISO 11228-1:2021. La frecuencia no reduce este valor de forma fija:
+  // en tareas repetitivas el límite ajustado se calcula con el método NIOSH.
+  const isoLim = isoGrupo(input.grupo, sexo).mref
   const limAp = rm.general
   const exc = Math.max(input.peso - limAp, 0)
   const pct = limAp > 0 ? ((input.peso / limAp - 1) * 100) : 0

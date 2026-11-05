@@ -8,7 +8,7 @@ import { calcRula } from '@/lib/calc/rula'
 import { calcRosa, ROSA_ACTUACION, type ROSAInput } from '@/lib/calc/rosa'
 import { getConclusiones } from '@/lib/informe/conclusiones'
 import { getRecomendaciones } from '@/lib/informe/recomendaciones'
-import { ISO_11228, REBA_RIESGO, RM_375 } from '@/lib/norma'
+import { isoGrupo, REBA_RIESGO, RM_375 } from '@/lib/norma'
 import { RISK_LEVEL_NAME, type RiskLevel } from '@/types/ergo'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
@@ -45,7 +45,7 @@ export function Informe() {
   }, [info.metodos, info.sexo, reba, rula, owas, niosh, mmc, rosa])
 
   const limAp = RM_375[info.sexo].general
-  const isoRow = ISO_11228.find(x => x.grupo === mmc.grupo) ?? ISO_11228[0]!
+  const isoRow = isoGrupo(mmc.grupo, info.sexo)
 
   const recos = useMemo(
     () =>
@@ -177,13 +177,13 @@ export function Informe() {
             </p>
             <p className="mt-2">
               Marco normativo aplicado: <strong>RM N° 375-2008-TR</strong> (Norma Básica de Ergonomía, Perú) e{' '}
-              <strong>ISO 11228-1:2003</strong>.
+              <strong>ISO 11228-1:2021</strong>.
             </p>
             {ri.mmc && (
               <p className="mt-1.5 text-xs text-ergo-mid">
                 Límites RM 375: <strong>Varón {RM_375.masculino.general} kg</strong> (entrenado {RM_375.masculino.entrenado} kg) · <strong>Mujer {RM_375.femenino.general} kg</strong> (entrenada {RM_375.femenino.entrenado} kg).
-                ISO 11228-1 · {mmc.grupo}: ocasional {isoRow.ocasional}kg / frecuente {isoRow.frecuente}kg /
-                muy frecuente {isoRow.muyFrecuente}kg.
+                ISO 11228-1:2021 · masa de referencia para {isoRow.grupo.toLowerCase()}: {isoRow.mref} kg. En levantamiento
+                repetitivo el límite se ajusta por frecuencia y posición (método NIOSH).
               </p>
             )}
           </Section>
@@ -301,10 +301,10 @@ export function Informe() {
           <Table>
             <Row cells={['Peso manipulado', `${mmc.peso} kg`]} />
             <Row cells={['Sexo', info.sexo === 'masculino' ? 'Masculino' : 'Femenino']} />
-            <Row cells={['Grupo', mmc.grupo]} />
+            <Row cells={['Grupo', isoRow.grupo]} />
             <Row cells={['Frecuencia', mmc.frec]} />
             <Row cells={['Límite RM 375', `${ri.mmc.limRM} kg (entrenado: ${ri.mmc.limEnt} kg)`]} />
-            <Row cells={[`Límite ISO 11228 (${mmc.frec})`, `${ri.mmc.limISO} kg`]} />
+            <Row cells={[`Masa de referencia ISO 11228-1:2021 (${isoRow.grupo.toLowerCase()})`, `${ri.mmc.limISO} kg`]} />
             <Row
               cells={[
                 'Exceso',
@@ -413,7 +413,7 @@ export function Informe() {
         <p className="mt-1.5">
           <strong>Marco normativo:</strong> RM N° 375-2008-TR (vigente desde 28/11/2008, Norma
           Básica de Ergonomía y de Procedimiento de Evaluación de Riesgo Disergonómico) ·
-          ISO 11228-1:2003 (Ergonomics — Manual handling — Lifting and carrying) ·
+          ISO 11228-1:2021 (Ergonomics — Manual handling — Lifting, lowering and carrying) ·
           Ley N° 29783 — Ley de Seguridad y Salud en el Trabajo.
         </p>
         <p className="mt-1.5">

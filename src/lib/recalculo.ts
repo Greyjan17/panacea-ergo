@@ -9,7 +9,7 @@ import { calcMmc, type MMCInput } from '@/lib/calc/mmc'
 import { calcRosa, type ROSAInput } from '@/lib/calc/rosa'
 import type { Method, Sexo } from '@/types/ergo'
 
-export const VERSION_CALCULO = '3.1.0'
+export const VERSION_CALCULO = '3.2.0'
 
 export interface PayloadGuardado {
   info?: { sexo?: Sexo; metodos?: Method[] }
@@ -104,7 +104,7 @@ export function construirPayloadRecalculado(
       {
         fecha: new Date().toISOString(),
         version: VERSION_CALCULO,
-        motivo: 'Corrección de tablas RULA/OWAS/NIOSH/REBA',
+        motivo: 'Actualización de fórmulas (ISO 11228-1:2021 y correcciones de tablas)',
         resultadosAnteriores: payload.resultados ?? null,
         levelMaxAnterior,
       },
