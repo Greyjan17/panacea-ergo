@@ -11,7 +11,7 @@ const PatchSchema = z.object({
   level_max: z.number().int().min(0).max(4),
   score_reba: z.number().int().min(0).max(15).nullable(),
   // Un recálculo debe conservar el historial de resultados anteriores.
-  payload: z.record(z.unknown()).refine(p => Array.isArray(p.recalculos) && p.recalculos.length > 0),
+  payload: z.record(z.string(), z.unknown()).refine(p => Array.isArray(p.recalculos) && p.recalculos.length > 0),
 })
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

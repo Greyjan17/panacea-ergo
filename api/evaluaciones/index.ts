@@ -13,10 +13,10 @@ const PostSchema = z.object({
   puesto: z.string().max(200).optional().default(''),
   evaluador: z.string().min(1).max(200),
   fecha_evaluacion: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  metodos: z.array(z.enum(['REBA', 'RULA', 'OWAS', 'NIOSH', 'MMC'])).max(5).default([]),
+  metodos: z.array(z.enum(['REBA', 'RULA', 'OWAS', 'NIOSH', 'MMC', 'ROSA'])).max(6).default([]),
   level_max: z.number().int().min(0).max(4).default(0),
   score_reba: z.number().int().min(0).max(15).nullable().optional(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
 })
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
