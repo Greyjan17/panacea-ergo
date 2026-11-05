@@ -11,8 +11,23 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { z as z4 } from 'zod/v4'
 import { audit, requireUser } from '../_lib/auth.js'
+import { hasDb, sql } from '../_lib/db.js'
 
 const MODEL = 'claude-opus-5-5'
+
+/** Análisis con IA permitidos por usuario en 24 h (configurable con AI_DAILY_LIMIT en Vercel). */
+const LIMITE_DIARIO = Math.max(1, Number(process.env.AI_DAILY_LIMIT) || 30)
+
+/** Cuenta los análisis del usuario en las últimas 24 h usando el registro de accesos. */
+async function usosUltimas24h(user: { id: string | null; nombre: string }): Promise<number> {
+  if (!hasDb()) return 0
+  const rows = (await sql()`
+    SELECT count(*)::int AS n FROM accesos
+    WHERE accion = 'ia_analizar' AND ts > now() - interval '24 hours'
+      AND (usuario_id = ${user.id} OR (usuario_id IS NULL AND ${user.id}::uuid IS NULL AND usuario_nombre = ${user.nombre}))
+  `) as Array<{ n: number }>
+  return rows[0]?.n ?? 0
+}
 
 const BodySchema = z.object({
   method: z.enum(['REBA', 'RULA', 'OWAS']),
@@ -133,6 +148,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!parsed.success) {
     res.status(400).json({ error: 'Datos inválidos' })
     return
+  }
+  try {
+    if ((await usosUltimas24h(user)) >= LIMITE_DIARIO) {
+      res.status(429).json({ error: `Límite de ${LIMITE_DIARIO} análisis con IA en 24 horas alcanzado. Complete el formulario manualmente o intente mañana.` })
+      return
+    }
+  } catch (err) {
+    console.error('/api/ai/analyze: no se pudo verificar la cuota', err)
   }
   const { method, photos } = parsed.data
 
