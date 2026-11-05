@@ -24,6 +24,7 @@ export function Historial() {
   const setOwas = useEvaluacion(s => s.setOwas)
   const setNiosh = useEvaluacion(s => s.setNiosh)
   const setMmc = useEvaluacion(s => s.setMmc)
+  const setRosa = useEvaluacion(s => s.setRosa)
 
   const [items, setItems] = useState<EvaluacionResumen[]>([])
   const [loading, setLoading] = useState(false)
@@ -61,6 +62,7 @@ export function Historial() {
         owas?: unknown
         niosh?: unknown
         mmc?: unknown
+        rosa?: unknown
       }
       resetAll()
       if (p.info) setInfo(p.info as Parameters<typeof setInfo>[0])
@@ -69,6 +71,7 @@ export function Historial() {
       if (p.owas) setOwas(p.owas as Parameters<typeof setOwas>[0])
       if (p.niosh) setNiosh(p.niosh as Parameters<typeof setNiosh>[0])
       if (p.mmc) setMmc(p.mmc as Parameters<typeof setMmc>[0])
+      if (p.rosa) setRosa(p.rosa as Parameters<typeof setRosa>[0])
       setStep(4)
       window.history.pushState({}, '', '/')
       window.location.reload()

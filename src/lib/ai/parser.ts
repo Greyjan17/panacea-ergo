@@ -122,7 +122,7 @@ export class AIParseError extends Error {
  * 1) Si `values` viene como JSON → valida con Zod.
  * 2) Si solo viene `raw` → aplica parser legacy (TODO en F6).
  */
-export function parseAIResponse<M extends Exclude<Method, 'MMC'>>(
+export function parseAIResponse<M extends Exclude<Method, 'MMC' | 'ROSA'>>(
   method: M,
   response: AIRawResponse,
 ): ParseResult<

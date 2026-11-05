@@ -6,6 +6,7 @@ import { calcRula, type RULAInput } from '@/lib/calc/rula'
 import { calcOwas, type OWASInput } from '@/lib/calc/owas'
 import { calcNiosh, type NIOSHInput } from '@/lib/calc/niosh'
 import { calcMmc, type MMCInput } from '@/lib/calc/mmc'
+import { calcRosa, type ROSAInput } from '@/lib/calc/rosa'
 import type { Method, Sexo } from '@/types/ergo'
 
 export const VERSION_CALCULO = '3.1.0'
@@ -17,7 +18,8 @@ export interface PayloadGuardado {
   owas?: OWASInput
   niosh?: NIOSHInput
   mmc?: MMCInput
-  resultados?: Partial<Record<'reba' | 'rula' | 'owas' | 'niosh' | 'mmc', { level?: number } | null>>
+  rosa?: ROSAInput
+  resultados?: Partial<Record<'reba' | 'rula' | 'owas' | 'niosh' | 'mmc' | 'rosa', { level?: number } | null>>
   [k: string]: unknown
 }
 
@@ -39,8 +41,8 @@ export interface Recalculo {
   subeRiesgo: boolean
 }
 
-const KEYS: Record<Method, 'reba' | 'rula' | 'owas' | 'niosh' | 'mmc'> = {
-  REBA: 'reba', RULA: 'rula', OWAS: 'owas', NIOSH: 'niosh', MMC: 'mmc',
+const KEYS: Record<Method, 'reba' | 'rula' | 'owas' | 'niosh' | 'mmc' | 'rosa'> = {
+  REBA: 'reba', RULA: 'rula', OWAS: 'owas', NIOSH: 'niosh', MMC: 'mmc', ROSA: 'rosa',
 }
 
 function score(m: Method, r: unknown): number | null {
@@ -53,13 +55,14 @@ function score(m: Method, r: unknown): number | null {
 export function recalcularEvaluacion(payload: PayloadGuardado, metodos: Method[]): Recalculo {
   const sexo: Sexo = payload.info?.sexo ?? 'masculino'
   const nuevos: Recalculo['resultados'] = {
-    reba: null, rula: null, owas: null, niosh: null, mmc: null,
+    reba: null, rula: null, owas: null, niosh: null, mmc: null, rosa: null,
   }
   if (metodos.includes('REBA') && payload.reba) nuevos.reba = calcReba(payload.reba)
   if (metodos.includes('RULA') && payload.rula) nuevos.rula = calcRula(payload.rula)
   if (metodos.includes('OWAS') && payload.owas) nuevos.owas = calcOwas(payload.owas)
   if (metodos.includes('NIOSH') && payload.niosh) nuevos.niosh = calcNiosh(payload.niosh)
   if (metodos.includes('MMC') && payload.mmc) nuevos.mmc = calcMmc(payload.mmc, sexo)
+  if (metodos.includes('ROSA') && payload.rosa) nuevos.rosa = calcRosa(payload.rosa)
 
   const cambios: CambioMetodo[] = []
   for (const m of metodos) {

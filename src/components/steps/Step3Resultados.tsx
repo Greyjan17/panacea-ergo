@@ -6,6 +6,7 @@ import { calcNiosh } from '@/lib/calc/niosh'
 import { calcOwas } from '@/lib/calc/owas'
 import { calcReba } from '@/lib/calc/reba'
 import { calcRula } from '@/lib/calc/rula'
+import { calcRosa, ROSA_ACTUACION } from '@/lib/calc/rosa'
 import { useEvaluacion } from '@/store/useEvaluacion'
 import type { Method } from '@/types/ergo'
 
@@ -16,16 +17,17 @@ export function Step3Resultados() {
   const owas = useEvaluacion(s => s.owas)
   const niosh = useEvaluacion(s => s.niosh)
   const mmc = useEvaluacion(s => s.mmc)
+  const rosa = useEvaluacion(s => s.rosa)
   const sexo = useEvaluacion(s => s.info.sexo)
   const setStep = useEvaluacion(s => s.setStep)
 
   const results = useMemo(() => {
     const out: Partial<Record<Method, ReturnType<typeof summarizeOne>>> = {}
     for (const m of metodos) {
-      out[m] = summarizeOne(m, { reba, rula, owas, niosh, mmc }, sexo)
+      out[m] = summarizeOne(m, { reba, rula, owas, niosh, mmc, rosa }, sexo)
     }
     return out
-  }, [metodos, reba, rula, owas, niosh, mmc, sexo])
+  }, [metodos, reba, rula, owas, niosh, mmc, rosa, sexo])
 
   return (
     <Card title="📊 Resumen de Riesgo Ergonómico">
@@ -72,6 +74,7 @@ interface AllInputs {
   owas: ReturnType<typeof useEvaluacion.getState>['owas']
   niosh: ReturnType<typeof useEvaluacion.getState>['niosh']
   mmc: ReturnType<typeof useEvaluacion.getState>['mmc']
+  rosa: ReturnType<typeof useEvaluacion.getState>['rosa']
 }
 
 function summarizeOne(m: Method, inputs: AllInputs, sexo: 'masculino' | 'femenino') {
@@ -90,6 +93,14 @@ function summarizeOne(m: Method, inputs: AllInputs, sexo: 'masculino' | 'femenin
   if (m === 'NIOSH') {
     const r = calcNiosh(inputs.niosh)
     return { level: r.level, headline: `LI = ${r.LI.toFixed(2)}`, detail: `RWL = ${r.RWL.toFixed(2)} kg` }
+  }
+  if (m === 'ROSA') {
+    const r = calcRosa(inputs.rosa)
+    return {
+      level: r.level,
+      headline: `ROSA ${r.fin}/10 · ${ROSA_ACTUACION[r.nivelActuacion].riesgo}`,
+      detail: `Silla ${r.silla} · Pantalla y periféricos ${r.perifericos} · ${ROSA_ACTUACION[r.nivelActuacion].accion}`,
+    }
   }
   // MMC
   const r = calcMmc(inputs.mmc, sexo)

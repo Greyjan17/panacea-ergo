@@ -5,6 +5,7 @@ import type { RULAInput, RULAResult } from '@/lib/calc/rula'
 import type { OWASInput, OWASResult } from '@/lib/calc/owas'
 import type { NIOSHInput, NIOSHResult } from '@/lib/calc/niosh'
 import type { MMCInput, MMCResult } from '@/lib/calc/mmc'
+import { ROSA_ACTUACION, type ROSAInput, type ROSAResult } from '@/lib/calc/rosa'
 import { REBA_RIESGO, RULA_ACCION } from '@/lib/norma'
 
 export interface ConclusionesInput {
@@ -13,10 +14,11 @@ export interface ConclusionesInput {
   owas?: { input: OWASInput; result: OWASResult }
   niosh?: { input: NIOSHInput; result: NIOSHResult }
   mmc?: { input: MMCInput; result: MMCResult }
+  rosa?: { input: ROSAInput; result: ROSAResult }
 }
 
 export function getConclusiones(input: ConclusionesInput): string[] {
-  const { reba, rula, owas, niosh, mmc } = input
+  const { reba, rula, owas, niosh, mmc, rosa } = input
   const out: string[] = []
 
   const maxLvl = Math.max(
@@ -25,6 +27,7 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     owas?.result.level ?? 0,
     niosh?.result.level ?? 0,
     mmc?.result.level ?? 0,
+    rosa?.result.level ?? 0,
   )
 
   if (reba) {
@@ -78,6 +81,14 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     )
   }
 
+  if (rosa) {
+    const a = ROSA_ACTUACION[rosa.result.nivelActuacion]
+    out.push(
+      `ROSA: ${rosa.result.fin}/10 — riesgo ${a.riesgo.toLowerCase()} (nivel de actuación ${rosa.result.nivelActuacion}). ${a.accion} ` +
+        `Silla ${rosa.result.silla}, pantalla y periféricos ${rosa.result.perifericos}.`,
+    )
+  }
+
   // Exposición asociada a TME (no es diagnóstico)
   const tme: string[] = []
   if ((reba && reba.input.trunk >= 3) || (owas && owas.input.back >= 2)) {
@@ -91,6 +102,15 @@ export function getConclusiones(input: ConclusionesInput): string[] {
   }
   if (reba && rebaPiernas(reba.input).rodillas >= 1) {
     tme.push('sobrecarga de rodillas')
+  }
+  if (rosa && (rosa.input.pantalla > 1 || rosa.input.pantallaGiro || rosa.input.telefonoCuello)) {
+    tme.push('cervicalgia')
+  }
+  if (rosa && (rosa.input.teclado > 1 || rosa.input.tecladoDesv || rosa.input.mouse > 1)) {
+    tme.push('trastornos de muñeca y antebrazo')
+  }
+  if (rosa && (rosa.input.respaldo > 1 || rosa.input.altura > 1)) {
+    tme.push('lumbalgia')
   }
   if (tme.length && maxLvl >= 2) {
     out.push(`Exposición asociada a mayor riesgo de TME: ${tme.join(', ')} (requiere confirmación clínica).`)

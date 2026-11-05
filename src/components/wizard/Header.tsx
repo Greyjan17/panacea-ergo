@@ -30,7 +30,7 @@ export function Header() {
             <div className="w-2 h-2 rounded-full bg-green-400" />
             <span className="text-xs text-white font-semibold">Autoguardado</span>
           </div>
-          <div className="text-[10px] text-white/70 mt-0.5">REBA·RULA·OWAS·NIOSH·MMC</div>
+          <div className="text-[10px] text-white/70 mt-0.5">REBA·RULA·OWAS·NIOSH·MMC·ROSA</div>
         </div>
         <button
           onClick={onNew}
