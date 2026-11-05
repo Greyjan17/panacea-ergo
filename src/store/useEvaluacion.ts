@@ -6,6 +6,7 @@ import type { RULAInput } from '@/lib/calc/rula'
 import type { OWASInput } from '@/lib/calc/owas'
 import type { NIOSHInput } from '@/lib/calc/niosh'
 import type { MMCInput } from '@/lib/calc/mmc'
+import type { ROSAInput } from '@/lib/calc/rosa'
 
 export interface EvaluacionInfo {
   empresa: string
@@ -72,6 +73,17 @@ export const DEFAULT_MMC: MMCInput = {
   gestante: false,
 }
 
+export const DEFAULT_ROSA: ROSAInput = {
+  altura: 1, alturaEspacio: false, alturaNoReg: false,
+  profundidad: 1, profundidadNoReg: false,
+  reposabrazos: 1, reposaSeparados: false, reposaDuro: false, reposaNoAjust: false,
+  respaldo: 1, respaldoMesaAlta: false, respaldoNoAjust: false, tSilla: 0,
+  pantalla: 1, pantallaGiro: false, pantallaDocs: false, pantallaBrillos: false, pantallaLejos: false, tPantalla: 0,
+  telefono: 1, telefonoCuello: false, telefonoSinManos: false, tTelefono: 0,
+  mouse: 1, mousePinza: false, mouseAlturas: false, mouseReposa: false, tMouse: 0,
+  teclado: 1, tecladoDesv: false, tecladoAlto: false, tecladoAlcance: false, tecladoNoAjust: false, tTeclado: 0,
+}
+
 export interface Photo {
   /** dataURL JPEG/PNG (comprimida a max 800px) */
   url: string
@@ -91,6 +103,7 @@ interface State {
   owas: OWASInput
   niosh: NIOSHInput
   mmc: MMCInput
+  rosa: ROSAInput
 }
 
 interface Actions {
@@ -104,11 +117,13 @@ interface Actions {
   setOwas: (patch: Partial<OWASInput>) => void
   setNiosh: (patch: Partial<NIOSHInput>) => void
   setMmc: (patch: Partial<MMCInput>) => void
+  setRosa: (patch: Partial<ROSAInput>) => void
   resetReba: () => void
   resetRula: () => void
   resetOwas: () => void
   resetNiosh: () => void
   resetMmc: () => void
+  resetRosa: () => void
   resetAll: () => void
 }
 
@@ -163,6 +178,7 @@ export const useEvaluacion = create<EvaluacionStore>()(
   owas: DEFAULT_OWAS,
   niosh: DEFAULT_NIOSH,
   mmc: DEFAULT_MMC,
+  rosa: DEFAULT_ROSA,
 
   setStep: s => set({ step: s }),
   setInfo: patch => set(s => ({ info: { ...s.info, ...patch } })),
@@ -183,12 +199,14 @@ export const useEvaluacion = create<EvaluacionStore>()(
   setOwas: patch => set(s => ({ owas: { ...s.owas, ...patch } })),
   setNiosh: patch => set(s => ({ niosh: { ...s.niosh, ...patch } })),
   setMmc: patch => set(s => ({ mmc: { ...s.mmc, ...patch } })),
+  setRosa: patch => set(s => ({ rosa: { ...s.rosa, ...patch } })),
 
   resetReba: () => set({ reba: DEFAULT_REBA }),
   resetRula: () => set({ rula: DEFAULT_RULA }),
   resetOwas: () => set({ owas: DEFAULT_OWAS }),
   resetNiosh: () => set({ niosh: DEFAULT_NIOSH }),
   resetMmc: () => set({ mmc: DEFAULT_MMC }),
+  resetRosa: () => set({ rosa: DEFAULT_ROSA }),
   resetAll: () =>
     set({
       step: 0,
@@ -199,6 +217,7 @@ export const useEvaluacion = create<EvaluacionStore>()(
       owas: DEFAULT_OWAS,
       niosh: DEFAULT_NIOSH,
       mmc: DEFAULT_MMC,
+      rosa: DEFAULT_ROSA,
     }),
     }),
     {
@@ -212,6 +231,7 @@ export const useEvaluacion = create<EvaluacionStore>()(
         owas: state.owas,
         niosh: state.niosh,
         mmc: state.mmc,
+        rosa: state.rosa,
       }),
       version: 1,
     },

@@ -3,7 +3,7 @@ import { Nav } from '@/components/wizard/Nav'
 import type { Method } from '@/types/ergo'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
-const METHODS: Method[] = ['REBA', 'RULA', 'OWAS', 'NIOSH', 'MMC']
+const METHODS: Method[] = ['REBA', 'RULA', 'OWAS', 'NIOSH', 'MMC', 'ROSA']
 
 const FIELDS: ReadonlyArray<['empresa' | 'trabajador' | 'dni' | 'cargo' | 'puesto' | 'area' | 'tarea' | 'evaluador', string]> = [
   ['empresa', 'Empresa / Cliente'],

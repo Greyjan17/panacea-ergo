@@ -5,6 +5,7 @@ import { calcNiosh } from '@/lib/calc/niosh'
 import { calcOwas } from '@/lib/calc/owas'
 import { calcReba, rebaActividad, rebaPiernas } from '@/lib/calc/reba'
 import { calcRula } from '@/lib/calc/rula'
+import { calcRosa, ROSA_ACTUACION, type ROSAInput } from '@/lib/calc/rosa'
 import { getConclusiones } from '@/lib/informe/conclusiones'
 import { getRecomendaciones } from '@/lib/informe/recomendaciones'
 import { ISO_11228, REBA_RIESGO, RM_375 } from '@/lib/norma'
@@ -23,6 +24,7 @@ export function Informe() {
   const owas = useEvaluacion(s => s.owas)
   const niosh = useEvaluacion(s => s.niosh)
   const mmc = useEvaluacion(s => s.mmc)
+  const rosa = useEvaluacion(s => s.rosa)
 
   const ri = useMemo(() => {
     const out: {
@@ -31,14 +33,16 @@ export function Informe() {
       owas?: ReturnType<typeof calcOwas>
       niosh?: ReturnType<typeof calcNiosh>
       mmc?: ReturnType<typeof calcMmc>
+      rosa?: ReturnType<typeof calcRosa>
     } = {}
     if (info.metodos.includes('REBA')) out.reba = calcReba(reba)
     if (info.metodos.includes('RULA')) out.rula = calcRula(rula)
     if (info.metodos.includes('OWAS')) out.owas = calcOwas(owas)
     if (info.metodos.includes('NIOSH')) out.niosh = calcNiosh(niosh)
     if (info.metodos.includes('MMC')) out.mmc = calcMmc(mmc, info.sexo)
+    if (info.metodos.includes('ROSA')) out.rosa = calcRosa(rosa)
     return out
-  }, [info.metodos, info.sexo, reba, rula, owas, niosh, mmc])
+  }, [info.metodos, info.sexo, reba, rula, owas, niosh, mmc, rosa])
 
   const limAp = RM_375[info.sexo].general
   const isoRow = ISO_11228.find(x => x.grupo === mmc.grupo) ?? ISO_11228[0]!
@@ -51,9 +55,10 @@ export function Informe() {
         owas: ri.owas ? { input: owas, result: ri.owas } : undefined,
         niosh: ri.niosh ? { input: niosh, result: ri.niosh } : undefined,
         mmc: ri.mmc ? { input: mmc, result: ri.mmc } : undefined,
+        rosa: ri.rosa ? { input: rosa, result: ri.rosa } : undefined,
         limAp,
       }),
-    [ri, reba, rula, owas, niosh, mmc, limAp],
+    [ri, reba, rula, owas, niosh, mmc, rosa, limAp],
   )
 
   const conclusiones = useMemo(
@@ -64,8 +69,9 @@ export function Informe() {
         owas: ri.owas ? { input: owas, result: ri.owas } : undefined,
         niosh: ri.niosh ? { input: niosh, result: ri.niosh } : undefined,
         mmc: ri.mmc ? { input: mmc, result: ri.mmc } : undefined,
+        rosa: ri.rosa ? { input: rosa, result: ri.rosa } : undefined,
       }),
-    [ri, reba, rula, owas, niosh, mmc],
+    [ri, reba, rula, owas, niosh, mmc, rosa],
   )
 
   const hoy = new Date().toLocaleDateString('es-PE', {
@@ -327,6 +333,9 @@ export function Informe() {
         </Section>
       )}
 
+      {/* Resultados ROSA */}
+      {ri.rosa && <RosaTabla nro={next()} input={rosa} result={ri.rosa} />}
+
       {/* Interpretación REBA */}
       {ri.reba && (
         <Section title="Interpretación del Nivel de Riesgo REBA">
@@ -410,7 +419,7 @@ export function Informe() {
         <p className="mt-1.5">
           <strong>Herramienta:</strong> PANACEA ERGO 3.0 (código fuente auditable). Tablas:
           REBA (Hignett &amp; McAtamney, 2000), RULA (McAtamney &amp; Corlett, 1993),
-          OWAS (Karhu et al., 1977), NIOSH (Waters et al., 1993).
+          OWAS (Karhu et al., 1977), NIOSH (Waters et al., 1993), ROSA (Sonne, Villalta &amp; Andrews, 2012).
         </p>
       </div>
 
@@ -643,6 +652,7 @@ function Firma({
     owas?: ReturnType<typeof calcOwas>
     niosh?: ReturnType<typeof calcNiosh>
     mmc?: ReturnType<typeof calcMmc>
+    rosa?: ReturnType<typeof calcRosa>
   }
   mmc: ReturnType<typeof useEvaluacion.getState>['mmc']
   hoy: string
@@ -663,6 +673,7 @@ function Firma({
         owas: ri.owas?.code ?? null,
         niosh: ri.niosh?.LI.toFixed(2) ?? null,
         mmc: ri.mmc ? `${mmc.peso}kg` : null,
+        rosa: ri.rosa?.fin ?? null,
       }),
     [info, ri, mmc.peso],
   )
@@ -703,5 +714,81 @@ function Firma({
         </div>
       </div>
     </footer>
+  )
+}
+
+const ROSA_TXT = {
+  altura: ['Rodillas a ~90°', 'Asiento muy bajo o muy alto', 'Pies sin contacto con el suelo'],
+  profundidad: ['~8 cm entre asiento y corva', 'Asiento muy largo o muy corto'],
+  reposabrazos: ['Codos apoyados, hombros relajados', 'Muy altos o muy bajos'],
+  respaldo: ['Reclinado 95-110° con apoyo lumbar', 'Sin apoyo lumbar o ángulo fuera de rango'],
+  pantalla: ['A 45-75 cm, borde superior a la altura de los ojos', 'Muy baja', 'Muy alta (extensión de cuello)'],
+  telefono: ['Auricular o una mano, a ≤30 cm', 'A más de 30 cm'],
+  mouse: ['Alineado con el hombro', 'No alineado o lejos del cuerpo'],
+  teclado: ['Muñecas rectas, hombros relajados', 'Muñecas extendidas >15°'],
+} as const
+
+const TIEMPO_TXT: Record<number, string> = { [-1]: '<1 h/día', 0: '1-4 h/día', 1: '>4 h/día' }
+
+/** Hallazgos de ROSA que se apartan del puesto ideal: base objetiva para las medidas de mejora. */
+function rosaHallazgos(i: ROSAInput): string[] {
+  const h: string[] = []
+  if (i.altura > 1) h.push(`Silla: ${ROSA_TXT.altura[i.altura - 1]!.toLowerCase()}`)
+  if (i.alturaEspacio) h.push('Espacio insuficiente para las piernas bajo la mesa')
+  if (i.profundidad > 1) h.push('Profundidad del asiento inadecuada')
+  if (i.reposabrazos > 1) h.push('Reposabrazos a altura inadecuada')
+  if (i.reposaSeparados) h.push('Reposabrazos demasiado separados')
+  if (i.reposaDuro) h.push('Reposabrazos con superficie dura o dañada')
+  if (i.respaldo > 1) h.push('Respaldo sin apoyo lumbar adecuado o con inclinación fuera de 95-110°')
+  if (i.respaldoMesaAlta) h.push('Superficie de trabajo demasiado alta (hombros encogidos)')
+  if (i.alturaNoReg || i.profundidadNoReg || i.reposaNoAjust || i.respaldoNoAjust) h.push('Silla con elementos no regulables')
+  if (i.pantalla > 1) h.push(`Pantalla ${i.pantalla === 2 ? 'demasiado baja' : 'demasiado alta'}`)
+  if (i.pantallaGiro) h.push('Pantalla desviada lateralmente (giro de cuello)')
+  if (i.pantallaDocs) h.push('Manejo de documentos sin atril')
+  if (i.pantallaBrillos) h.push('Brillos o reflejos en la pantalla')
+  if (i.pantallaLejos && i.pantalla === 2) h.push('Pantalla a más de 75 cm')
+  if (i.telefono > 1) h.push('Teléfono a más de 30 cm')
+  if (i.telefonoCuello) h.push('Teléfono sujeto entre cuello y hombro')
+  if (i.telefonoSinManos) h.push('Teléfono sin manos libres')
+  if (i.mouse > 1) h.push('Mouse no alineado con el hombro')
+  if (i.mousePinza) h.push('Mouse pequeño (agarre en pinza)')
+  if (i.mouseAlturas) h.push('Mouse y teclado a diferentes alturas')
+  if (i.mouseReposa) h.push('Reposamanos duro o puntos de presión en la mano')
+  if (i.teclado > 1) h.push('Muñecas en extensión mayor de 15° al teclear')
+  if (i.tecladoDesv) h.push('Desviación lateral de muñecas')
+  if (i.tecladoAlto) h.push('Teclado demasiado alto')
+  if (i.tecladoAlcance) h.push('Alcance de objetos lejanos o sobre la cabeza')
+  if (i.tecladoNoAjust) h.push('Teclado o plataforma no ajustables')
+  return h
+}
+
+function RosaTabla({ nro, input: i, result: r }: { nro: number; input: ROSAInput; result: ReturnType<typeof calcRosa> }) {
+  const act = ROSA_ACTUACION[r.nivelActuacion]
+  const hall = rosaHallazgos(i)
+  return (
+    <Section title={`${nro}. Resultados ROSA (puesto de oficina con pantalla)`}>
+      <Table head={['Elemento', 'Puntuación', 'Situación observada', 'Tiempo de uso']}>
+        <Row cells={['Silla (Tabla A + tiempo)', r.silla, `${ROSA_TXT.altura[i.altura - 1]} · ${ROSA_TXT.respaldo[i.respaldo - 1]}`, TIEMPO_TXT[i.tSilla] ?? '—']} />
+        <Row cells={['Pantalla', r.pantalla, ROSA_TXT.pantalla[i.pantalla - 1] ?? '—', TIEMPO_TXT[i.tPantalla] ?? '—']} />
+        <Row cells={['Teléfono', r.telefono, ROSA_TXT.telefono[i.telefono - 1] ?? '—', TIEMPO_TXT[i.tTelefono] ?? '—']} />
+        <Row cells={['Mouse', r.mouse, ROSA_TXT.mouse[i.mouse - 1] ?? '—', TIEMPO_TXT[i.tMouse] ?? '—']} />
+        <Row cells={['Teclado', r.teclado, ROSA_TXT.teclado[i.teclado - 1] ?? '—', TIEMPO_TXT[i.tTeclado] ?? '—']} />
+        <Row cells={['Pantalla y teléfono (Tabla B)', r.pantallaTelefono, '', '']} />
+        <Row cells={['Mouse y teclado (Tabla C)', r.mouseTeclado, '', '']} />
+        <Row cells={['Pantalla y periféricos (Tabla D)', r.perifericos, '', '']} />
+        <FinalRow level={r.level} cells={['PUNTUACIÓN FINAL ROSA (Tabla E)', `${r.fin}/10`, `Riesgo ${act.riesgo.toLowerCase()} · nivel de actuación ${r.nivelActuacion}`, act.accion]} />
+      </Table>
+      {hall.length > 0 && (
+        <div className="mt-2 text-xs">
+          <strong>Aspectos del puesto que se apartan de la condición ideal:</strong>
+          <ul className="pl-5 mt-1 list-disc leading-relaxed">
+            {hall.map((x, k) => <li key={k}>{x}</li>)}
+          </ul>
+        </div>
+      )}
+      <p className="mt-1.5 text-[10px] text-ergo-muted">
+        Niveles ROSA: 1 inapreciable · 2-4 mejorable · 5 alto · 6-8 muy alto · 9-10 extremo. Una puntuación de 5 o más indica riesgo elevado.
+      </p>
+    </Section>
   )
 }

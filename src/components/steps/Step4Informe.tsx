@@ -6,6 +6,7 @@ import { calcNiosh } from '@/lib/calc/niosh'
 import { calcOwas } from '@/lib/calc/owas'
 import { calcReba } from '@/lib/calc/reba'
 import { calcRula } from '@/lib/calc/rula'
+import { calcRosa } from '@/lib/calc/rosa'
 import { guardarEvaluacion, pedirClave, readAdminKey } from '@/lib/api/historial'
 import { useEvaluacion } from '@/store/useEvaluacion'
 
@@ -17,6 +18,7 @@ export function Step4Informe() {
   const owas = useEvaluacion(s => s.owas)
   const niosh = useEvaluacion(s => s.niosh)
   const mmc = useEvaluacion(s => s.mmc)
+  const rosa = useEvaluacion(s => s.rosa)
 
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
@@ -41,6 +43,7 @@ export function Step4Informe() {
         owas: info.metodos.includes('OWAS') ? calcOwas(owas) : null,
         niosh: info.metodos.includes('NIOSH') ? calcNiosh(niosh) : null,
         mmc: info.metodos.includes('MMC') ? calcMmc(mmc, info.sexo) : null,
+        rosa: info.metodos.includes('ROSA') ? calcRosa(rosa) : null,
       }
       const levelMax = Math.max(
         ri.reba?.level ?? 0,
@@ -48,6 +51,7 @@ export function Step4Informe() {
         ri.owas?.level ?? 0,
         ri.niosh?.level ?? 0,
         ri.mmc?.level ?? 0,
+        ri.rosa?.level ?? 0,
       )
       const { id } = await guardarEvaluacion(
         {
@@ -60,7 +64,7 @@ export function Step4Informe() {
           metodos: info.metodos,
           level_max: levelMax,
           score_reba: ri.reba?.fin ?? null,
-          payload: { info, reba, rula, owas, niosh, mmc, resultados: ri },
+          payload: { info, reba, rula, owas, niosh, mmc, rosa, resultados: ri },
         },
         adminKey,
       )
