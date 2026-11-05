@@ -12,11 +12,12 @@ describe('interpretAngles — hallazgos clínicos', () => {
     expect(interpretAngles(base)).toHaveLength(0)
   })
 
-  it('flexión severa de tronco menciona L4-L5', () => {
+  it('flexión severa de tronco describe carga lumbar sin afirmar diagnóstico', () => {
     const f = interpretAngles({ ...base, trunk: 70 })
     expect(f[0]?.seg).toBe('Tronco')
     expect(f[0]?.risk).toBe('alto')
-    expect(f[0]?.desc).toContain('L4-L5')
+    expect(f[0]?.desc).toMatch(/lumbar/)
+    expect(f[0]?.desc).not.toMatch(/hernia/i)
   })
 
   it('brazo elevado >90° identifica manguito rotador', () => {

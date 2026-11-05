@@ -1,9 +1,10 @@
 // GET   /api/evaluaciones/:id → recupera una evaluación con su payload completo.
 // PATCH /api/evaluaciones/:id → actualiza resultados tras un recálculo (level_max, score_reba, payload).
+// DELETE /api/evaluaciones/:id → elimina la evaluación (solo administrador; derecho de supresión, Ley 29733).
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { requireAdmin } from '../_lib/auth.js'
+import { audit, requireUser } from '../_lib/auth.js'
 import { sql } from '../_lib/db.js'
 
 const PatchSchema = z.object({
@@ -14,9 +15,7 @@ const PatchSchema = z.object({
 })
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAdmin(req, res)) return
-
-  if (req.method !== 'GET' && req.method !== 'PATCH') {
+  if (req.method !== 'GET' && req.method !== 'PATCH' && req.method !== 'DELETE') {
     res.status(405).json({ error: 'Método no permitido' })
     return
   }
@@ -24,6 +23,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const id = typeof req.query.id === 'string' ? req.query.id : null
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
     res.status(400).json({ error: 'ID inválido' })
+    return
+  }
+
+  const user = await requireUser(req, res, { admin: req.method === 'DELETE' })
+  if (!user) return
+
+  if (req.method === 'DELETE') {
+    try {
+      const rows = await sql()`DELETE FROM evaluaciones WHERE id = ${id}::uuid RETURNING id, empresa`
+      if (rows.length === 0) {
+        res.status(404).json({ error: 'Evaluación no encontrada' })
+        return
+      }
+      // El registro no guarda datos personales del trabajador borrado (solo la empresa).
+      await audit(req, user, 'borrar', id, (rows[0] as { empresa: string }).empresa)
+      res.status(200).json({ ok: true })
+    } catch (err) {
+      console.error('DELETE /api/evaluaciones/:id', err)
+      res.status(500).json({ error: 'Error al eliminar la evaluación' })
+    }
     return
   }
 
@@ -46,6 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(404).json({ error: 'Evaluación no encontrada' })
         return
       }
+      await audit(req, user, 'actualizar', id)
       res.status(200).json({ ok: true })
     } catch (err) {
       console.error('PATCH /api/evaluaciones/:id', err)
@@ -66,6 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(404).json({ error: 'Evaluación no encontrada' })
       return
     }
+    await audit(req, user, 'ver', id)
     res.status(200).json({ evaluacion: rows[0] })
   } catch (err) {
     console.error('GET /api/evaluaciones/:id', err)

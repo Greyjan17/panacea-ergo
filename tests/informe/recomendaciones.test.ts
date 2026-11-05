@@ -54,7 +54,7 @@ describe('getRecomendaciones — clínica dinámica', () => {
       mmc: { input, result: calcMmc(input, 'masculino') },
       limAp: 25,
     })
-    expect(r.administrativas.join(' ')).toMatch(/Capacitación inmediata en MMC/)
+    expect(r.administrativas.join(' ')).toMatch(/Capacitación inmediata en técnicas de MMC.*num\. 13/)
   })
 
   it('nivel alto añade pausas activas obligatorias cada hora', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calcReba, type REBAInput } from '@/lib/calc/reba'
+import { calcReba, rebaPiernas, type REBAInput } from '@/lib/calc/reba'
 
 const base: REBAInput = {
   neck: 1, neckT: false, neckS: false,
@@ -21,10 +21,10 @@ describe('REBA', () => {
     const r = calcReba({
       neck: 2, neckT: true, neckS: true,
       trunk: 4, trunkT: true, trunkS: true,
-      legs: 4, load: 2, shock: true,
+      legs: 2, knee: 2, load: 2, shock: true,
       ua: 6, shr: true, abd: true, sup: false,
       la: 2, wrist: 3, wristT: true,
-      coup: 3, act: 3,
+      coup: 3, act: 3, actStatic: true, actRepeat: true, actRapid: true,
     })
     expect(r.fin).toBe(15)
     expect(r.level).toBe(4)
@@ -48,10 +48,30 @@ describe('REBA', () => {
     expect(conApoyo.fin).toBeLessThanOrEqual(sinApoyo.fin)
   })
 
-  it('actividad repetitiva +2 incrementa el score final', () => {
+  it('actividad: cada condición suma +1 (Hignett & McAtamney 2000)', () => {
     const sin = calcReba({ ...base, trunk: 3 })
-    const con = calcReba({ ...base, trunk: 3, act: 2 })
-    expect(con.fin).toBe(sin.fin + 2)
+    expect(calcReba({ ...base, trunk: 3, actRepeat: true }).fin).toBe(sin.fin + 1)
+    expect(calcReba({ ...base, trunk: 3, actRapid: true }).fin).toBe(sin.fin + 1)
+    expect(calcReba({ ...base, trunk: 3, actStatic: true, actRepeat: true, actRapid: true }).fin).toBe(sin.fin + 3)
+  })
+
+  it('actividad en registros antiguos (selección única 1-3) equivale a +1', () => {
+    const sin = calcReba({ ...base, trunk: 3 })
+    expect(calcReba({ ...base, trunk: 3, act: 2 }).fin).toBe(sin.fin + 1)
+    expect(calcReba({ ...base, trunk: 3, act: 3 }).fin).toBe(sin.fin + 1)
+  })
+
+  it('piernas = apoyo + flexión de rodillas', () => {
+    expect(rebaPiernas({ legs: 1, knee: 0 }).score).toBe(1)
+    expect(rebaPiernas({ legs: 1, knee: 1 }).score).toBe(2) // bilateral, rodillas 30-60°
+    expect(rebaPiernas({ legs: 1, knee: 2 }).score).toBe(3) // bilateral, rodillas >60°
+    expect(rebaPiernas({ legs: 2, knee: 1 }).score).toBe(3)
+    expect(rebaPiernas({ legs: 2, knee: 2 }).score).toBe(4)
+  })
+
+  it('piernas en registros antiguos (código 3-4) conservan su puntaje y quedan marcadas', () => {
+    expect(rebaPiernas({ legs: 3 })).toEqual({ base: null, rodillas: 1, score: 3, legado: true })
+    expect(rebaPiernas({ legs: 4 })).toEqual({ base: null, rodillas: 2, score: 4, legado: true })
   })
 
   it('niveles de riesgo respetan los rangos publicados (fin → level)', () => {

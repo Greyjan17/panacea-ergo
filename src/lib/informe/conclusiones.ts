@@ -1,6 +1,6 @@
 // Generador de conclusiones dinámicas para el informe.
 
-import type { REBAInput, REBAResult } from '@/lib/calc/reba'
+import { rebaPiernas, type REBAInput, type REBAResult } from '@/lib/calc/reba'
 import type { RULAInput, RULAResult } from '@/lib/calc/rula'
 import type { OWASInput, OWASResult } from '@/lib/calc/owas'
 import type { NIOSHInput, NIOSHResult } from '@/lib/calc/niosh'
@@ -34,8 +34,8 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     if (reba.input.trunk >= 3) {
       factores.push(`flexión tronco ${reba.input.trunk === 4 ? '>60°' : '20-60°'}`)
     }
-    if (reba.input.legs >= 3) {
-      factores.push(`postura en ${reba.input.legs === 4 ? 'cuclillas' : 'semisquatting'}`)
+    if (rebaPiernas(reba.input).rodillas >= 1) {
+      factores.push(`postura en ${rebaPiernas(reba.input).rodillas === 2 ? 'cuclillas' : 'semisquatting'}`)
     }
     if (reba.input.ua >= 3) {
       factores.push(`elevación brazo ${reba.input.ua === 4 ? '>90°' : '45-90°'}`)
@@ -68,7 +68,9 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     )
   }
 
-  if (mmc && mmc.input.peso > 0) {
+  if (mmc && mmc.result.gestante) {
+    out.push('MMC: trabajadora gestante — la RM 375-2008-TR (Título III, num. 12) no permite la manipulación manual de cargas; corresponde reubicación.')
+  } else if (mmc && mmc.input.peso > 0) {
     out.push(
       `MMC: ${mmc.input.peso}kg — RM375: ${mmc.result.cumRM ? 'cumple' : 'INCUMPLE'} (${mmc.result.limRM}kg), ` +
         `ISO: ${mmc.result.cumISO ? 'cumple' : 'INCUMPLE'} (${mmc.result.limISO}kg). ` +
@@ -76,22 +78,22 @@ export function getConclusiones(input: ConclusionesInput): string[] {
     )
   }
 
-  // TME probables
+  // Exposición asociada a TME (no es diagnóstico)
   const tme: string[] = []
   if ((reba && reba.input.trunk >= 3) || (owas && owas.input.back >= 2)) {
-    tme.push('lumbalgia/hernia discal lumbar')
+    tme.push('lumbalgia')
   }
   if (reba && reba.input.ua >= 3) {
-    tme.push('tendinopatía manguito rotador')
+    tme.push('tendinopatía del manguito rotador')
   }
   if (reba && reba.input.wrist >= 2) {
-    tme.push('síndrome túnel carpiano')
+    tme.push('trastornos de muñeca')
   }
-  if (reba && reba.input.legs >= 3) {
-    tme.push('condropatía rotuliana')
+  if (reba && rebaPiernas(reba.input).rodillas >= 1) {
+    tme.push('sobrecarga de rodillas')
   }
   if (tme.length && maxLvl >= 2) {
-    out.push(`TME probables: ${tme.join(', ')}.`)
+    out.push(`Exposición asociada a mayor riesgo de TME: ${tme.join(', ')} (requiere confirmación clínica).`)
   }
 
   out.push(

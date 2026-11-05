@@ -7,7 +7,9 @@
 // Convenciones de inputs:
 //  - `trunk`: 1=erecto, 2=0-20°, 3=20-60°, 4=>60°
 //  - `neck`:  1=0-20°, 2=>20° o extensión
-//  - `legs`:  1=bilateral, 2=unilateral, 3=flex 30-60°, 4=flex >60°
+//  - `legs`:  1=apoyo bilateral/caminando/sentado, 2=unilateral o inestable
+//             (3 y 4 = códigos antiguos que mezclaban apoyo y rodillas; ver rebaPiernas)
+//  - `knee`:  flexión de rodillas, se SUMA a `legs`: 0=<30° o sentado, 1=30-60°, 2=>60°
 //  - `ua`:    1=-20/20°, 2=20-45°, 3=45-90°, 4=>90°
 //  - `la`:    1=60-100°, 2=fuera de rango
 //  - `wrist`: 1=0-15°, 2=>15°
@@ -23,6 +25,8 @@ export interface REBAInput {
   trunkT: boolean
   trunkS: boolean
   legs: 1 | 2 | 3 | 4
+  /** Flexión de rodillas (+1 si 30-60°, +2 si >60°, no sentado). Ausente en registros antiguos. */
+  knee?: 0 | 1 | 2
   load: 0 | 1 | 2
   shock: boolean
   // Grupo B
@@ -35,7 +39,12 @@ export interface REBAInput {
   wristT: boolean
   // Modificadores finales
   coup: 0 | 1 | 2 | 3
+  /** Registros antiguos: lista de selección única (1 estático, 2 repetitivo, 3 cambios rápidos). */
   act: 0 | 1 | 2 | 3
+  /** Actividad: cada condición suma +1 (Hignett & McAtamney 2000). */
+  actStatic?: boolean
+  actRepeat?: boolean
+  actRapid?: boolean
 }
 
 export interface REBAResult {
@@ -83,6 +92,40 @@ const TABLE_C: number[][] = [
 
 const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x))
 
+export interface RebaPiernas {
+  /** 1 bilateral, 2 unilateral; null en registros antiguos (no se registró el apoyo). */
+  base: 1 | 2 | null
+  rodillas: 0 | 1 | 2
+  score: number
+  legado: boolean
+}
+
+/**
+ * Puntaje de piernas REBA = apoyo (1 bilateral, 2 unilateral) + flexión de rodillas (+1 30-60°, +2 >60°).
+ * Los registros antiguos usaban un solo código 1-4 (3 = rodillas 30-60°, 4 = >60°) sin registrar el apoyo:
+ * conservan su puntaje original y quedan marcados como `legado` para revisión.
+ */
+export function rebaPiernas(input: Pick<REBAInput, 'legs' | 'knee'>): RebaPiernas {
+  if (input.knee === undefined && input.legs >= 3) {
+    return { base: null, rodillas: (input.legs - 2) as 1 | 2, score: input.legs, legado: true }
+  }
+  const base = (input.legs >= 2 ? 2 : 1) as 1 | 2
+  const rodillas = clamp(input.knee ?? 0, 0, 2) as 0 | 1 | 2
+  return { base, rodillas, score: clamp(base + rodillas, 1, 4), legado: false }
+}
+
+/**
+ * Puntaje de actividad REBA: +1 por cada condición presente (estático >1 min, repetitivo >4/min,
+ * cambios rápidos o base inestable). Los registros antiguos marcaban UNA sola condición en una
+ * lista (valores 1-3), por lo que cualquier valor >0 equivale a +1.
+ */
+export function rebaActividad(input: Pick<REBAInput, 'act' | 'actStatic' | 'actRepeat' | 'actRapid'>): number {
+  if (input.actStatic !== undefined || input.actRepeat !== undefined || input.actRapid !== undefined) {
+    return (input.actStatic ? 1 : 0) + (input.actRepeat ? 1 : 0) + (input.actRapid ? 1 : 0)
+  }
+  return input.act > 0 ? 1 : 0
+}
+
 function finalLevel(fin: number): RiskLevel {
   if (fin <= 1) return 0
   if (fin <= 3) return 1
@@ -105,7 +148,7 @@ export function calcReba(input: REBAInput): REBAResult {
     1,
     3,
   )
-  const legsFin = clamp(input.legs, 1, 4)
+  const legsFin = rebaPiernas(input).score
 
   const scoreTA = TABLE_A[trunkFin - 1]?.[neckFin - 1]?.[legsFin - 1] ?? 9
   const sA = clamp(
@@ -127,7 +170,7 @@ export function calcReba(input: REBAInput): REBAResult {
   const sB = clamp(scoreTB + clamp(input.coup, 0, 3), 0, 12)
 
   const sC = TABLE_C[Math.min(sA - 1, 11)]?.[Math.min(sB - 1, 11)] ?? 12
-  const fin = clamp(sC + clamp(input.act, 0, 3), 0, 15)
+  const fin = clamp(sC + rebaActividad(input), 0, 15)
 
   return { sA, sB, sC, fin, level: finalLevel(fin) }
 }

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Btn, Card } from '@/components/ui'
 import {
+  borrarEvaluacion,
   clearAdminKey,
   listarEvaluaciones,
   obtenerEvaluacion,
+  pedirClave,
   readAdminKey,
   type EvaluacionResumen,
 } from '@/lib/api/historial'
 import { useEvaluacion } from '@/store/useEvaluacion'
+import { AdminUsuarios } from './AdminUsuarios'
 import { RevisionRecalculo } from './RevisionRecalculo'
 
 const RISK_COLOR = ['#22C55E', '#84CC16', '#EAB308', '#F97316', '#EF4444'] as const
@@ -30,10 +33,7 @@ export function Historial() {
   const adminKey = readAdminKey()
 
   const cargar = async (search: string) => {
-    if (!adminKey) {
-      setError('Sin admin key. Abre la app con ?k=… al menos una vez.')
-      return
-    }
+    if (!adminKey) return
     setLoading(true)
     setError(null)
     try {
@@ -77,8 +77,31 @@ export function Historial() {
     }
   }
 
+  const borrar = async (it: EvaluacionResumen) => {
+    const quien = it.trabajador || it.dni || 'sin nombre'
+    if (!confirm(`¿Eliminar definitivamente la evaluación de ${quien} (${it.empresa}, ${it.fecha_evaluacion})?\nNo se puede deshacer.`)) return
+    try {
+      await borrarEvaluacion(it.id, adminKey)
+      setItems(items.filter(x => x.id !== it.id))
+    } catch (e) {
+      alert(`No se pudo eliminar: ${(e as Error).message}`)
+    }
+  }
+
+  if (!adminKey) {
+    return (
+      <Card title="📚 Historial de evaluaciones">
+        <div className="text-center py-10 text-sm">
+          <p className="mb-3 text-ergo-muted">Para ver el historial ingrese su clave personal de acceso.</p>
+          <Btn label="Ingresar clave" onClick={() => { if (pedirClave()) window.location.reload() }} />
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <Card title="📚 Historial de evaluaciones">
+      <AdminUsuarios adminKey={adminKey} />
       {adminKey && <RevisionRecalculo adminKey={adminKey} onDone={() => void cargar(q)} />}
       <div className="flex gap-2 mb-3">
         <input
@@ -153,6 +176,13 @@ export function Historial() {
                   >
                     Abrir
                   </button>
+                  <button
+                    onClick={() => void borrar(it)}
+                    title="Eliminar (solo administrador)"
+                    className="ml-2 text-red-700 underline"
+                  >
+                    Eliminar
+                  </button>
                 </td>
               </tr>
             ))}
@@ -164,7 +194,7 @@ export function Historial() {
         <span>{items.length > 0 ? `${items.length} evaluación(es) cargada(s)` : ''}</span>
         <button
           onClick={() => {
-            if (confirm('¿Cerrar sesión y olvidar el admin key en este navegador?')) {
+            if (confirm('¿Cerrar sesión y olvidar la clave en este navegador?')) {
               clearAdminKey()
               window.location.reload()
             }

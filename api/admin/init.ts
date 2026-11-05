@@ -1,8 +1,8 @@
 // POST /api/admin/init — aplica la migración 001_init.sql.
-// Idempotente: usa CREATE TABLE IF NOT EXISTS. Requiere ADMIN_KEY.
+// Idempotente: usa CREATE TABLE IF NOT EXISTS. Requiere clave de administrador.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireAdmin } from '../_lib/auth.js'
+import { requireUser } from '../_lib/auth.js'
 import { sql } from '../_lib/db.js'
 
 const SCHEMA_SQL = `
@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS evaluaciones_search_idx
 `
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireUser(req, res, { admin: true }))) return
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'POST únicamente' })
     return

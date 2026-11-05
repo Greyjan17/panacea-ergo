@@ -47,7 +47,10 @@ export function RULAPanel() {
             label="Fuerza A" value={rula.fA}
             onChange={v => u('fA', v as RULAInput['fA'])}
             options={[
-              [0, '0·<2kg'], [1, '1·2-10kg'], [2, '2·>10kg'], [3, '3·Brusco'],
+              [0, '0·<2 kg intermitente'],
+              [1, '1·2-10 kg intermitente'],
+              [2, '2·2-10 kg estática/repetida o >10 kg intermitente'],
+              [3, '3·>10 kg estática/repetida, o golpes/fuerza brusca'],
             ] as const}
           />
         </div>
@@ -86,7 +89,10 @@ export function RULAPanel() {
             label="Fuerza B" value={rula.fB}
             onChange={v => u('fB', v as RULAInput['fB'])}
             options={[
-              [0, '0·<2kg'], [1, '1·2-10kg'], [2, '2·>10kg'], [3, '3·Brusco'],
+              [0, '0·<2 kg intermitente'],
+              [1, '1·2-10 kg intermitente'],
+              [2, '2·2-10 kg estática/repetida o >10 kg intermitente'],
+              [3, '3·>10 kg estática/repetida, o golpes/fuerza brusca'],
             ] as const}
           />
         </div>

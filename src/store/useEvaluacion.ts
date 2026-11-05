@@ -41,10 +41,10 @@ export const DEFAULT_INFO: EvaluacionInfo = {
 export const DEFAULT_REBA: REBAInput = {
   neck: 1, neckT: false, neckS: false,
   trunk: 1, trunkT: false, trunkS: false,
-  legs: 1, load: 0, shock: false,
+  legs: 1, knee: 0, load: 0, shock: false,
   ua: 1, shr: false, abd: false, sup: false,
   la: 1, wrist: 1, wristT: false,
-  coup: 0, act: 0,
+  coup: 0, act: 0, actStatic: false, actRepeat: false, actRapid: false,
 }
 
 export const DEFAULT_RULA: RULAInput = {
@@ -69,6 +69,7 @@ export const DEFAULT_MMC: MMCInput = {
   frec: 'frecuente',
   form: 'no',
   factores: [],
+  gestante: false,
 }
 
 export interface Photo {

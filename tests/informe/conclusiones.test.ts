@@ -29,16 +29,16 @@ describe('getConclusiones — narrativa clínica', () => {
     expect(rebaLine).toMatch(/agarre deficiente/i)
   })
 
-  it('TME probables se incluyen solo si nivel >= 2', () => {
+  it('La exposición asociada a TME se incluye solo si nivel >= 2', () => {
     const inputBajo = { ...idealReba }
     const conBajo = getConclusiones({ reba: { input: inputBajo, result: calcReba(inputBajo) } })
-    expect(conBajo.some(x => x.startsWith('TME probables'))).toBe(false)
+    expect(conBajo.some(x => x.startsWith('Exposición asociada a mayor riesgo de TME'))).toBe(false)
 
     const inputAlto = { ...idealReba, trunk: 4 as const, load: 2 as const, ua: 4 as const }
     const conAlto = getConclusiones({
       reba: { input: inputAlto, result: calcReba(inputAlto) },
     })
-    expect(conAlto.some(x => /TME probables.*lumbalgia/i.test(x))).toBe(true)
+    expect(conAlto.some(x => /riesgo de TME.*lumbalgia/i.test(x))).toBe(true)
   })
 
   it('MMC con peso > 0 e INCUMPLE muestra ambos estándares', () => {

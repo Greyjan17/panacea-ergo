@@ -1,5 +1,6 @@
 // Interpretación clínica de los ángulos medidos.
 // Genera hallazgos categóricos con severidad para el informe.
+// Describen exposición postural (lo observable en la foto), no diagnósticos.
 
 import type { PoseAngles } from './types'
 
@@ -19,12 +20,12 @@ export function interpretAngles(a: PoseAngles): Finding[] {
   if (a.trunk > 60) {
     findings.push({
       seg: 'Tronco', ang: a.trunk, risk: 'alto',
-      desc: `Flexión ${a.trunk}° — compromiso biomecánico severo L4-L5/L5-S1. Riesgo de hernia discal lumbar.`,
+      desc: `Flexión ${a.trunk}° — flexión marcada de tronco, alta carga sobre la columna lumbar (asociada a mayor riesgo de lumbalgia).`,
     })
   } else if (a.trunk > 20) {
     findings.push({
       seg: 'Tronco', ang: a.trunk, risk: 'medio',
-      desc: `Flexión ${a.trunk}° — carga en zona media-distal lumbar. Sobrecarga paravertebral.`,
+      desc: `Flexión ${a.trunk}° — flexión moderada de tronco, sobrecarga de la musculatura lumbar.`,
     })
   } else if (a.trunk > 5) {
     findings.push({
@@ -37,12 +38,12 @@ export function interpretAngles(a: PoseAngles): Finding[] {
   if (a.neck > 20) {
     findings.push({
       seg: 'Cuello', ang: a.neck, risk: 'medio',
-      desc: `Flexión cervical ${a.neck}° — tensión suboccipital, riesgo de cervicalgia tensional.`,
+      desc: `Flexión cervical ${a.neck}° — flexión cervical sostenida (asociada a mayor riesgo de cervicalgia).`,
     })
   } else if (a.neck > 10) {
     findings.push({
       seg: 'Cuello', ang: a.neck, risk: 'bajo',
-      desc: `Flexión cervical ${a.neck}° — posición funcional con leve compromiso.`,
+      desc: `Flexión cervical ${a.neck}° — flexión cervical leve.`,
     })
   }
 
@@ -50,12 +51,12 @@ export function interpretAngles(a: PoseAngles): Finding[] {
   if (a.ua > 90) {
     findings.push({
       seg: 'Brazo sup.', ang: a.ua, risk: 'alto',
-      desc: `Elevación ${a.ua}° — abducción extrema, riesgo elevado de síndrome del manguito rotador.`,
+      desc: `Elevación ${a.ua}° — brazo por encima del hombro (asociada a mayor riesgo de tendinopatía del manguito rotador).`,
     })
   } else if (a.ua > 45) {
     findings.push({
       seg: 'Brazo sup.', ang: a.ua, risk: 'medio',
-      desc: `Elevación ${a.ua}° — sobrecarga del manguito rotador y tendón supraespinoso.`,
+      desc: `Elevación ${a.ua}° — elevación moderada del brazo, sobrecarga del hombro (manguito rotador).`,
     })
   }
 
@@ -63,7 +64,7 @@ export function interpretAngles(a: PoseAngles): Finding[] {
   if (a.la < 60 || a.la > 100) {
     findings.push({
       seg: 'Brazo inf.', ang: a.la, risk: 'medio',
-      desc: `Ángulo ${a.la}° fuera del rango funcional 60-100° — tensión en tendón bicipital.`,
+      desc: `Ángulo ${a.la}° fuera del rango funcional 60-100° — postura del codo fuera del rango neutro.`,
     })
   }
 
@@ -71,7 +72,7 @@ export function interpretAngles(a: PoseAngles): Finding[] {
   if (a.wrist > 15) {
     findings.push({
       seg: 'Muñeca', ang: a.wrist, risk: 'medio',
-      desc: `Desviación ${a.wrist}° — riesgo de síndrome del túnel carpiano.`,
+      desc: `Flexión/extensión ${a.wrist}° de muñeca (asociada a mayor riesgo de trastornos como el túnel carpiano).`,
     })
   }
 
@@ -79,12 +80,12 @@ export function interpretAngles(a: PoseAngles): Finding[] {
   if (a.knee < 120) {
     findings.push({
       seg: 'Rodillas', ang: a.knee, risk: 'alto',
-      desc: `Flexión ${180 - a.knee}° (ángulo ${a.knee}°) — sobrecarga patelofemoral bilateral severa.`,
+      desc: `Flexión ${180 - a.knee}° (ángulo ${a.knee}°) — flexión marcada de rodillas, sobrecarga patelofemoral.`,
     })
   } else if (a.knee < 150) {
     findings.push({
       seg: 'Rodillas', ang: a.knee, risk: 'medio',
-      desc: `Flexión ${180 - a.knee}° (ángulo ${a.knee}°) — semisquatting, sobrecarga patelofemoral.`,
+      desc: `Flexión ${180 - a.knee}° (ángulo ${a.knee}°) — semiflexión de rodillas, sobrecarga patelofemoral.`,
     })
   }
 

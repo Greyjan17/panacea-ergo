@@ -1,7 +1,7 @@
 // Generador de recomendaciones dinámicas para el informe.
 // Función pura: dadas las entradas + cálculos, devuelve listas categorizadas.
 
-import type { REBAInput, REBAResult } from '@/lib/calc/reba'
+import { rebaPiernas, type REBAInput, type REBAResult } from '@/lib/calc/reba'
 import type { RULAInput, RULAResult } from '@/lib/calc/rula'
 import type { OWASInput, OWASResult } from '@/lib/calc/owas'
 import type { NIOSHInput, NIOSHResult } from '@/lib/calc/niosh'
@@ -55,7 +55,7 @@ export function getRecomendaciones(input: RecomendacionesInput): Recomendaciones
   if (reba && reba.input.ua >= 3) {
     ing.push('Reducir altura de zona de depósito para evitar elevación de brazos >45°.')
   }
-  if (reba && reba.input.legs >= 3) {
+  if (reba && rebaPiernas(reba.input).rodillas >= 1) {
     ing.push('Elevar zona de trabajo para eliminar cuclillas/flexión extrema de rodillas.')
   }
   if (owas && owas.result.cat >= 3) {
@@ -85,8 +85,11 @@ export function getRecomendaciones(input: RecomendacionesInput): Recomendaciones
   } else if (maxLvl >= 2) {
     adm.push('Pausas activas de 5 minutos cada 2 horas.')
   }
+  if (mmc && mmc.result.gestante) {
+    adm.push('Reubicar a la trabajadora gestante en un puesto sin manipulación manual de cargas (RM 375-2008-TR, Título III, num. 12).')
+  }
   if (mmc && mmc.input.form === 'no') {
-    adm.push('Capacitación inmediata en MMC — agravante RM 375 Art.6.')
+    adm.push('Capacitación inmediata en técnicas de MMC — exigida por RM 375-2008-TR, Título III, num. 13.')
   }
   if (rula && rula.result.level >= 3) {
     adm.push('Micro-pausas de 30s cada 15min para extremidades superiores.')
@@ -102,7 +105,7 @@ export function getRecomendaciones(input: RecomendacionesInput): Recomendaciones
   if (reba && reba.input.wrist >= 2) {
     vig.push('Evaluación muñecas: Phalen, Tinel.')
   }
-  if (reba && reba.input.legs >= 3) {
+  if (reba && rebaPiernas(reba.input).rodillas >= 1) {
     vig.push('Evaluación rodillas: Clarke, McMurray.')
   }
   vig.push('Cuestionario Nórdico (NMQ) para detección temprana.')

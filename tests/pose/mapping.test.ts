@@ -15,7 +15,7 @@ describe('mapAnglesToREBA — rangos publicados', () => {
     expect(r.ua).toBe(1)
     expect(r.la).toBe(1)
     expect(r.wrist).toBe(1)
-    expect(r.legs).toBe(1)
+    expect(r.knee).toBe(0)
   })
 
   it('tronco 30° → nivel 3 (20-60°)', () => {
@@ -30,8 +30,9 @@ describe('mapAnglesToREBA — rangos publicados', () => {
     expect(mapAnglesToREBA({ ...base, ua: 100 }).ua).toBe(4)
   })
 
-  it('rodillas en 100° (mucha flexión) → nivel 4', () => {
-    expect(mapAnglesToREBA({ ...base, knee: 100 }).legs).toBe(4)
+  it('rodillas en 100° (flexión 80°) → +2; en 135° (flexión 45°) → +1', () => {
+    expect(mapAnglesToREBA({ ...base, knee: 100 }).knee).toBe(2)
+    expect(mapAnglesToREBA({ ...base, knee: 135 }).knee).toBe(1)
   })
 })
 

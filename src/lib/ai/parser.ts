@@ -17,6 +17,7 @@ export const REBAParsedSchema = z
     trunkT: z.boolean().optional(),
     trunkS: z.boolean().optional(),
     legs: z.number().int().min(1).max(4).optional(),
+    knee: z.number().int().min(0).max(2).optional(),
     load: z.number().int().min(0).max(2).optional(),
     shock: z.boolean().optional(),
     ua: z.number().int().min(1).max(6).optional(),
